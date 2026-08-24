@@ -48,7 +48,7 @@ KULLANIM
   QuantCheckpoint::ConvertFile("model.ckpt", "model.ckptq");
   auto model = QuantCheckpoint::Load("model.ckptq");
 
-  CMakeProject2 quantize --input model.ckpt --output model.ckptq
+  MAYA quantize --input model.ckpt --output model.ckptq
 
 
 ================================================================================

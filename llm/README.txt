@@ -3,7 +3,7 @@ LLM KLASORU - GENEL BAKIS
 ================================================================================
 
 Bu klasor, projenin cekirdek yapay zeka kutuphanesini icerir.
-Uygulama (CMakeProject2) bu kutuphaneyi kullanir; model mantigi burada yasar.
+Uygulama (MAYA) bu kutuphaneyi kullanir; model mantigi burada yasar.
 
 Simdiki durum: Egitim dongusu tamamlandi.
 Backward + AdamW + Trainer mevcut.

@@ -6,7 +6,7 @@ call "%~dp0_build_paths.bat"
 if errorlevel 1 exit /b 1
 
 if not exist "%EXE%" (
-  echo CMakeProject2.exe bulunamadi. Once Visual Studio ile derleyin.
+  echo MAYA.exe bulunamadi. Once Visual Studio ile derleyin.
   exit /b 1
 )
 

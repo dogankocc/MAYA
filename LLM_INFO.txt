@@ -1,28 +1,28 @@
 React Native uygulaması (chat_rn) sadece arayüz. Asıl LLM (yapay zeka modeli) PC’deki C++ programında çalışır.
 
-Telefon/Emulator (chat_rn)  →  HTTP  →  PC (CMakeProject2.exe serve)  →  LLM modeli
+Telefon/Emulator (chat_rn)  →  HTTP  →  PC (MAYA.exe serve)  →  LLM modeli
 Uygulama mesajı sunucuya gönderir; sunucu modeli çalıştırıp cevabı döner. Sunucu olmadan uygulama “Bağlantı yok” gösterir.
 
 Nasıl çalıştırılır?
 1. Projeyi derle (ilk kez)
-cd c:\Users\dogan.koc\source\repos\CMakeProject2
+cd c:\Users\dogan.koc\source\repos\MAYA
 cmake --build out\build\x64-debug
 2. Model oluştur (ilk kez, model dosyası yoksa)
-out\build\x64-debug\CMakeProject2\CMakeProject2.exe demo
+out\build\x64-debug\MAYA\MAYA.exe demo
 Bu komut şunları üretir:
 
 model.ckptq — quantize edilmiş model
 tokenizer_data — tokenizer
 3. Sunucuyu başlat
-cd c:\Users\dogan.koc\source\repos\CMakeProject2
-out\build\x64-debug\CMakeProject2\CMakeProject2.exe serve --model model.ckptq --tokenizer tokenizer_data --port 8765
+cd c:\Users\dogan.koc\source\repos\MAYA
+out\build\x64-debug\MAYA\MAYA.exe serve --model model.ckptq --tokenizer tokenizer_data --port 8765
 Başarılı olursa şunu görürsün:
 
 LLM server listening on http://127.0.0.1:8765
 Bu pencere açık kalmalı.
 
 4. Uygulamayı başlat (ayrı terminal)
-cd c:\Users\dogan.koc\source\repos\CMakeProject2\chat_rn
+cd c:\Users\dogan.koc\source\repos\MAYA\chat_rn
 npx expo start --android
 Tek komutla (sunucu + uygulama birlikte):
 
@@ -46,24 +46,25 @@ Sohbeti sıfırla
 Özet: Sunucu = PC’de çalışan LLM motoru. Önce serve, sonra expo start.
 
 
+
 1. Visual Studio'da doğru projeyi derle
 
-Flutter değil — CMakeProject2 (C++ LLM sunucusu):
+Flutter değil — MAYA (C++ LLM sunucusu):
 
 
-Solution: CMakeProject2
-Target: CMakeProject2.exe
+Solution: MAYA
+Target: MAYA.exe
 Build → Rebuild
 2. Modeli yeniden oluştur
 
-cd c:\Users\dogan.koc\source\repos\CMakeProject2
+cd c:\Users\dogan.koc\source\repos\MAYA
 scripts\prepare_model.bat
 veya:
 
-CMakeProject2.exe demo
+MAYA.exe demo
 3. Sunucuyu yeniden başlat (eski sunucu penceresini kapat)
 
-CMakeProject2.exe serve --model model.ckptq --tokenizer tokenizer_data --port 8765
+MAYA.exe serve --model model.ckptq --tokenizer tokenizer_data --port 8765
 4. Uygulamada (isteğe bağlı)
 
 Ayarlar → Greedy (deterministik) aç → daha tutarlı cevaplar.
@@ -75,13 +76,13 @@ Tam yolu kullan — exe proje kökünde değil.
 @echo off
 setlocal
 set ROOT=%~dp0..
-CMakeProject2.exe PATH'te yok; derlenmiş dosya şurada:
+MAYA.exe PATH'te yok; derlenmiş dosya şurada:
 
-out\build\x64-debug\CMakeProject2\CMakeProject2.exe
+out\build\x64-debug\MAYA\MAYA.exe
 Doğrudan çalıştır:
 
-cd c:\Users\dogan.koc\source\repos\CMakeProject2
-out\build\x64-debug\CMakeProject2\CMakeProject2.exe serve --model model.ckptq --tokenizer tokenizer_data --port 8765
+cd c:\Users\dogan.koc\source\repos\MAYA
+out\build\x64-debug\MAYA\MAYA.exe serve --model model.ckptq --tokenizer tokenizer_data --port 8765
 veya script ile:
 
 scripts\run_server.bat
@@ -107,7 +108,7 @@ Yeni dosyalar:
 data/chat_corpus_tr.txt — kendi örneklerini ekleyebilirsin (soru|cevap formatı)
 llm/training/chat_corpus.cpp — diyalog yükleme ve eğitim seti
 Nasıl eğitirsin
-1. Visual Studio'da CMakeProject2 rebuild
+1. Visual Studio'da MAYA rebuild
 
 2. Model eğit (birkaç dakika sürer):
 
@@ -125,7 +126,7 @@ Sonra prepare_model.bat tekrar çalıştır.
 
 Adım sayısını artırmak için:
 
-CMakeProject2.exe train --steps 15000 --corpus data/chat_corpus_tr.txt
+MAYA.exe train --steps 15000 --corpus data/chat_corpus_tr.txt
 Gerçekçi beklenti
 Bu yerel mini model (~130 örnek, küçük transformer). ChatGPT gibi genel bilgi ve uzun mantık yürütme bekleme. Ama eğitildiği konularda (selamlaşma, temel teknik sorular, proje soruları) tutarlı cevap vermeli.
 
@@ -134,25 +135,25 @@ Bu yerel mini model (~130 örnek, küçük transformer). ChatGPT gibi genel bilg
 rka planda çalışan sunucu exe'yi kilitliyor. Script'e derlemeden önce süreci kapatma ekliyorum.
 
 set BUILD_DIR=%ROOT%\out\build\x64-debug
-set EXE=%BUILD_DIR%\CMakeProject2\CMakeProject2.exe
+set EXE=%BUILD_DIR%\MAYA\MAYA.exe
 set VSDEV="C:\Program Files\Microsoft Visual Studio\18\Insiders\Common7\Tools\VsDevCmd.bat"
 +         Add-Content -Path $OutputFile -Value $Content -Encoding UTF8
 +         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     + CategoryInfo          : InvalidArgument: (C:\Users\dogan....66838f54b5e.txt:String) [Add-Content], ArgumentExcep 
    tion
-    + FullyQualifiedErrorId : GetContentWriterArgumentError,Microsoft.PowerShell.Commands.AddContentCommand
+    + FullyQualifiedErrorId : GetContentWriterArgumentError,Microsoft.PowerShell.Commands.Add-ContentCommand
 LLM [hybrid-backend]
-LNK1168 = CMakeProject2.exe başka süreçte açık (sunucu serve modunda çalışıyordu).
+LNK1168 = MAYA.exe başka süreçte açık (sunucu serve modunda çalışıyordu).
 
 Çözüm
-build_server.bat güncellendi — derlemeden önce çalışan CMakeProject2.exe otomatik kapatılıyor.
+build_server.bat güncellendi — derlemeden önce çalışan MAYA.exe otomatik kapatılıyor.
 
 Tekrar çalıştır:
 
 scripts\build_server.bat
 Başarılı olunca şunu görmelisin:
 
-OK: ...\CMakeProject2.exe
+OK: ...\MAYA.exe
 LLM [hybrid-backend]
 Sonra
 Hibrit sunucu (yerel + Ollama):
@@ -163,7 +164,7 @@ Sadece yerel model:
 scripts\run_server.bat
 Hâlâ LNK1168 alırsan:
 
-Task Manager → CMakeProject2.exe → End task
+Task Manager → MAYA.exe → End task
 Visual Studio debugger açıksa kapat
 scripts\build_server.bat tekrar çalıştır
 Eski argüman testi (serve --model model.ckptq, llama3.2 yok) Load failed vermedi — sunucu ~6 dk ayakta kaldı; bu yüzden sonraki derlemede LNK1168 (exe kilitli) oluştu.
@@ -209,6 +210,7 @@ Ayrı terminal:
 scripts\run_server_hybrid.bat
 
 
+
 scripts\run_chat_android_install.bat  bu script bittiğinde başka birşey çalıştırmama gerek varmı
 
 Script başarıyla biterse genelde başka bir şey çalıştırmana gerek yok.
@@ -247,9 +249,9 @@ Sunucu + unit testler:
 scripts\build_all.bat
 Yanlış proje: chat_app / flutter_assemble → Flutter Windows; LLM sunucusu değil.
 
-LNK1168: CMakeProject2.exe açıksa kapat, script zaten taskkill yapıyor.
+LNK1168: MAYA.exe açıksa kapat, script zaten taskkill yapıyor.
 
-Visual Studio’da File → Open → Folder → repo kökü (CMakeProject2), out\build\x64-debug CMake cache ile aç.
+Visual Studio’da File → Open → Folder → repo kökü (MAYA), out\build\x64-debug CMake cache ile aç.
 
 Eğitim bitince:
 
@@ -267,5 +269,5 @@ App’i yeniden kurmana gerek yok; gerekirse sadece kapat-aç
 
 
 windows app exe:
-C:\Users\dogan.koc\source\repos\CMakeProject2\chat_app\build\windows\x64\runner\Release
+C:\Users\dogan.koc\source\repos\MAYA\chat_app\build\windows\x64\runner\Release
 llm_chat.exe

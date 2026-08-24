@@ -8,7 +8,7 @@ from fpdf import FPDF
 
 ROOT = Path(__file__).resolve().parent.parent
 OUTPUT_DIR = ROOT / "documents"
-OUTPUT = OUTPUT_DIR / "CMakeProject2_Inference_Akisi.pdf"
+OUTPUT = OUTPUT_DIR / "MAYA_Inference_Akisi.pdf"
 FONT_REGULAR = Path(r"C:\Windows\Fonts\arial.ttf")
 FONT_BOLD = Path(r"C:\Windows\Fonts\arialbd.ttf")
 FONT_MONO = Path(r"C:\Windows\Fonts\consola.ttf")
@@ -85,7 +85,7 @@ def build_pdf() -> Path:
     pdf.add_font("Mono", "", str(FONT_MONO if FONT_MONO.exists() else FONT_REGULAR))
 
     pdf.set_font("ArialB", "", 18)
-    pdf.multi_cell(pdf.usable_width(), 10, "CMakeProject2 - Model Dosyasindan Cevap Uretimi")
+    pdf.multi_cell(pdf.usable_width(), 10, "MAYA - Model Dosyasindan Cevap Uretimi")
     pdf.set_font("Arial", "", 11)
     pdf.set_text_color(80, 80, 80)
     pdf.multi_cell(pdf.usable_width(), 6, "Egitim sonrasi inference akisi - adim adim aciklama")

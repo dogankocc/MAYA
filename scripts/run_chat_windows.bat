@@ -6,7 +6,7 @@ call "%~dp0_build_paths.bat"
 if errorlevel 1 exit /b 1
 
 if not exist "%EXE%" (
-  echo Build CMakeProject2 in Visual Studio first.
+  echo Build MAYA in Visual Studio first.
   exit /b 1
 )
 

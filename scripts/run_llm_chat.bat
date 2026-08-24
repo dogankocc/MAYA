@@ -27,7 +27,7 @@ if errorlevel 1 (
   echo Metro zaten calisiyor olabilir.
 )
 
-tasklist /FI "IMAGENAME eq CMakeProject2.exe" 2>nul | find /I "CMakeProject2.exe" >nul
+tasklist /FI "IMAGENAME eq MAYA.exe" 2>nul | find /I "MAYA.exe" >nul
 if errorlevel 1 (
   start "LLM Server" "%ROOT%\scripts\run_server_hybrid.bat"
   timeout /t 3 /nobreak >nul

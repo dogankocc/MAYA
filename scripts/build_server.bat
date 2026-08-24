@@ -22,13 +22,13 @@ echo NOT: chat_app / llm_chat / Flutter DEGIL.
 
 
 
-tasklist /FI "IMAGENAME eq CMakeProject2.exe" 2>nul | find /I "CMakeProject2.exe" >nul
+tasklist /FI "IMAGENAME eq MAYA.exe" 2>nul | find /I "MAYA.exe" >nul
 
 if not errorlevel 1 (
 
-  echo Calisan CMakeProject2.exe kapatiliyor...
+  echo Calisan MAYA.exe kapatiliyor...
 
-  taskkill /F /IM CMakeProject2.exe >nul 2>&1
+  taskkill /F /IM MAYA.exe >nul 2>&1
 
   timeout /t 1 /nobreak >nul
 
@@ -90,7 +90,7 @@ if not exist "%BUILD_DIR%\build.ninja" (
 
 
 
-"%CMAKE%" --build "%BUILD_DIR%" --target CMakeProject2 --config %CMAKE_CONFIG%
+"%CMAKE%" --build "%BUILD_DIR%" --target MAYA --config %CMAKE_CONFIG%
 
 if errorlevel 1 (
 

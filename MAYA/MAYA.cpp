@@ -17,19 +17,19 @@ namespace {
 
 void PrintUsage() {
   std::cout << "Usage:\n"
-            << "  CMakeProject2 chat --model <path> --tokenizer <dir>\n"
-            << "  CMakeProject2 serve [--backend openai|local] [--port N] [--host H]\n"
+            << "  MAYA chat --model <path> --tokenizer <dir>\n"
+            << "  MAYA serve [--backend openai|local] [--port N] [--host H]\n"
             << "                      [--api-host H] [--api-key K] [--model M]\n"
             << "                      [--model-path P] [--tokenizer T]\n"
             << "                      [--openai-model M]\n"
             << "                      [--auto-learn] [--no-auto-learn]\n"
             << "                      [--auto-learn-threshold N]\n"
-            << "  CMakeProject2 version\n"
-            << "  CMakeProject2 quantize --input <fp32.ckpt> --output <int8.ckptq>\n"
-            << "  CMakeProject2 train [--output <model.ckpt>] [--tokenizer <dir>]\n"
+            << "  MAYA version\n"
+            << "  MAYA quantize --input <fp32.ckpt> --output <int8.ckptq>\n"
+            << "  MAYA train [--output <model.ckpt>] [--tokenizer <dir>]\n"
             << "                      [--corpus-dir <dir>] [--corpus <file>] [--steps N|auto]\n"
             << "                      [--vocab N] [--corpus-only]\n"
-            << "  CMakeProject2 demo\n";
+            << "  MAYA demo\n";
 }
 
 bool HasFlag(int argc, char** argv, const std::string& key) {
@@ -246,7 +246,7 @@ int RunDemo() {
   const int status = RunChatTraining("model.ckpt", "tokenizer_data", "data/corpus", "data/chat_corpus_tr.jsonl", 0,
                                      3072, true, false);
   if (status == 0) {
-    logger.Info("demo", "run: CMakeProject2 serve --model model.ckptq --tokenizer tokenizer_data");
+    logger.Info("demo", "run: MAYA serve --model model.ckptq --tokenizer tokenizer_data");
   }
   return status;
 }

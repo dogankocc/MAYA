@@ -20,7 +20,7 @@ else()
 endif()
 
 add_subdirectory(llm)
-add_subdirectory(CMakeProject2)
+add_subdirectory(MAYA)
 
 if(LLM_BUILD_TESTS)
   enable_testing()

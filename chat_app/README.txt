@@ -3,19 +3,19 @@ LLM Chat UI - Android + Windows
 ================================================================================
 
 Mimari:
-  CMakeProject2 serve  ->  HTTP API (C++)
+  MAYA serve  ->  HTTP API (C++)
   chat_app (Flutter)   ->  Android + Windows arayuzu
 
 -------------------------------------------------------------------------------
 1) Model hazirla (ilk kez)
 -------------------------------------------------------------------------------
-  cd CMakeProject2
-  out\build\x64-debug\CMakeProject2\CMakeProject2.exe demo
+  cd MAYA
+  out\build\x64-debug\MAYA\MAYA.exe demo
 
 -------------------------------------------------------------------------------
 2) Sunucuyu baslat (Windows)
 -------------------------------------------------------------------------------
-  CMakeProject2.exe serve --model model.ckptq --tokenizer tokenizer_data --port 8765
+  MAYA.exe serve --model model.ckptq --tokenizer tokenizer_data --port 8765
 
   Endpointler:
     GET  /api/v1/health

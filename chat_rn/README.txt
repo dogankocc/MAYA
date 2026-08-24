@@ -4,7 +4,7 @@ LLM Chat - React Native + Ollama (ChatGPT-class responses)
 
 Mimari:
   Ollama (llama3.2 vb.)  ->  gercek buyuk dil modeli
-  CMakeProject2 serve    ->  HTTP proxy (OpenAI uyumlu API)
+  MAYA serve    ->  HTTP proxy (OpenAI uyumlu API)
   chat_rn                ->  Android arayuzu
 
 -------------------------------------------------------------------------------

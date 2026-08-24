@@ -6,7 +6,7 @@ call "%~dp0_build_paths.bat"
 if errorlevel 1 exit /b 1
 
 if not exist "%EXE%" (
-  echo CMakeProject2.exe bulunamadi.
+  echo MAYA.exe bulunamadi.
   exit /b 1
 )
 

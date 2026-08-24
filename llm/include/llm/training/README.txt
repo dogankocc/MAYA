@@ -39,7 +39,7 @@ ORNEK
   float loss = 0.0f;
   trainer.TrainStep({3, 4, 5, 6}, loss);
 
-  CMakeProject2 train --output model.ckpt --steps 20
+  MAYA train --output model.ckpt --steps 20
 
 
 ================================================================================

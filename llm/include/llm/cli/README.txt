@@ -46,8 +46,8 @@ ChatCli komutlari
 KULLANIM
 ================================================================================
 
-  CMakeProject2 demo
-  CMakeProject2 chat --model model.ckptq --tokenizer tokenizer_data
+  MAYA demo
+  MAYA chat --model model.ckptq --tokenizer tokenizer_data
 
 
 ================================================================================
