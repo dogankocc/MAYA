@@ -1,0 +1,271 @@
+React Native uygulaması (chat_rn) sadece arayüz. Asıl LLM (yapay zeka modeli) PC’deki C++ programında çalışır.
+
+Telefon/Emulator (chat_rn)  →  HTTP  →  PC (CMakeProject2.exe serve)  →  LLM modeli
+Uygulama mesajı sunucuya gönderir; sunucu modeli çalıştırıp cevabı döner. Sunucu olmadan uygulama “Bağlantı yok” gösterir.
+
+Nasıl çalıştırılır?
+1. Projeyi derle (ilk kez)
+cd c:\Users\dogan.koc\source\repos\CMakeProject2
+cmake --build out\build\x64-debug
+2. Model oluştur (ilk kez, model dosyası yoksa)
+out\build\x64-debug\CMakeProject2\CMakeProject2.exe demo
+Bu komut şunları üretir:
+
+model.ckptq — quantize edilmiş model
+tokenizer_data — tokenizer
+3. Sunucuyu başlat
+cd c:\Users\dogan.koc\source\repos\CMakeProject2
+out\build\x64-debug\CMakeProject2\CMakeProject2.exe serve --model model.ckptq --tokenizer tokenizer_data --port 8765
+Başarılı olursa şunu görürsün:
+
+LLM server listening on http://127.0.0.1:8765
+Bu pencere açık kalmalı.
+
+4. Uygulamayı başlat (ayrı terminal)
+cd c:\Users\dogan.koc\source\repos\CMakeProject2\chat_rn
+npx expo start --android
+Tek komutla (sunucu + uygulama birlikte):
+
+scripts\run_chat_android.bat
+Sunucu adresi
+Ortam	Adres
+Android emulator
+http://10.0.2.2:8765 (varsayılan)
+Gerçek telefon
+http://<PC_IP>:8765
+Uygulama ayarlarından sunucu adresini kontrol edebilirsin. “Bağlantıyı test et” ile bağlantıyı doğrula.
+
+API uç noktaları
+Endpoint	İşlev
+GET /api/v1/health
+Sunucu/model durumu
+POST /api/v1/chat
+Mesaj gönder, cevap al
+POST /api/v1/reset
+Sohbeti sıfırla
+Özet: Sunucu = PC’de çalışan LLM motoru. Önce serve, sonra expo start.
+
+
+1. Visual Studio'da doğru projeyi derle
+
+Flutter değil — CMakeProject2 (C++ LLM sunucusu):
+
+
+Solution: CMakeProject2
+Target: CMakeProject2.exe
+Build → Rebuild
+2. Modeli yeniden oluştur
+
+cd c:\Users\dogan.koc\source\repos\CMakeProject2
+scripts\prepare_model.bat
+veya:
+
+CMakeProject2.exe demo
+3. Sunucuyu yeniden başlat (eski sunucu penceresini kapat)
+
+CMakeProject2.exe serve --model model.ckptq --tokenizer tokenizer_data --port 8765
+4. Uygulamada (isteğe bağlı)
+
+Ayarlar → Greedy (deterministik) aç → daha tutarlı cevaplar.
+
+Not: Bu küçük demo modeli ChatGPT gibi konuşmaz — sadece eğitildiği kısa kalıpları tekrarlar. Gerçek sohbet için büyük model + uzun eğitim gerekir.
+
+Tam yolu kullan — exe proje kökünde değil.
+
+@echo off
+setlocal
+set ROOT=%~dp0..
+CMakeProject2.exe PATH'te yok; derlenmiş dosya şurada:
+
+out\build\x64-debug\CMakeProject2\CMakeProject2.exe
+Doğrudan çalıştır:
+
+cd c:\Users\dogan.koc\source\repos\CMakeProject2
+out\build\x64-debug\CMakeProject2\CMakeProject2.exe serve --model model.ckptq --tokenizer tokenizer_data --port 8765
+veya script ile:
+
+scripts\run_server.bat
+Sunucu açılınca şunu görürsün:
+
+
+LLM server listening on http://127.0.0.1:8765
+
+Eğitim ciddi şekilde genişletildi. ChatGPT seviyesi bu mimariyle mümkün değil; ama anlamsız cevaplar belirgin azalır.
+
+Ne değişti
+Önce	Şimdi
+4 örnek cümle
+130+ Türkçe diyalog
+100 adım
+8000 adım
+64 boyut, 2 katman
+128 boyut, 3 katman
+Rastgele ağırlık
+Gerçek eğitim + quantize
+Yeni dosyalar:
+
+data/chat_corpus_tr.txt — kendi örneklerini ekleyebilirsin (soru|cevap formatı)
+llm/training/chat_corpus.cpp — diyalog yükleme ve eğitim seti
+Nasıl eğitirsin
+1. Visual Studio'da CMakeProject2 rebuild
+
+2. Model eğit (birkaç dakika sürer):
+
+scripts\prepare_model.bat
+3. Sunucuyu yeniden başlat:
+
+scripts\run_server.bat
+4. Uygulamada sohbeti sıfırla (↺) ve tekrar dene.
+
+Daha da iyileştirmek için
+data/chat_corpus_tr.txt dosyasına kendi soru-cevaplarını ekle:
+
+python ogrenmek istiyorum|Python baslangic icin harika bir dildir, degiskenlerle baslayin.
+Sonra prepare_model.bat tekrar çalıştır.
+
+Adım sayısını artırmak için:
+
+CMakeProject2.exe train --steps 15000 --corpus data/chat_corpus_tr.txt
+Gerçekçi beklenti
+Bu yerel mini model (~130 örnek, küçük transformer). ChatGPT gibi genel bilgi ve uzun mantık yürütme bekleme. Ama eğitildiği konularda (selamlaşma, temel teknik sorular, proje soruları) tutarlı cevap vermeli.
+
+
+
+rka planda çalışan sunucu exe'yi kilitliyor. Script'e derlemeden önce süreci kapatma ekliyorum.
+
+set BUILD_DIR=%ROOT%\out\build\x64-debug
+set EXE=%BUILD_DIR%\CMakeProject2\CMakeProject2.exe
+set VSDEV="C:\Program Files\Microsoft Visual Studio\18\Insiders\Common7\Tools\VsDevCmd.bat"
++         Add-Content -Path $OutputFile -Value $Content -Encoding UTF8
++         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidArgument: (C:\Users\dogan....66838f54b5e.txt:String) [Add-Content], ArgumentExcep 
+   tion
+    + FullyQualifiedErrorId : GetContentWriterArgumentError,Microsoft.PowerShell.Commands.AddContentCommand
+LLM [hybrid-backend]
+LNK1168 = CMakeProject2.exe başka süreçte açık (sunucu serve modunda çalışıyordu).
+
+Çözüm
+build_server.bat güncellendi — derlemeden önce çalışan CMakeProject2.exe otomatik kapatılıyor.
+
+Tekrar çalıştır:
+
+scripts\build_server.bat
+Başarılı olunca şunu görmelisin:
+
+OK: ...\CMakeProject2.exe
+LLM [hybrid-backend]
+Sonra
+Hibrit sunucu (yerel + Ollama):
+
+scripts\run_server_hybrid.bat
+Sadece yerel model:
+
+scripts\run_server.bat
+Hâlâ LNK1168 alırsan:
+
+Task Manager → CMakeProject2.exe → End task
+Visual Studio debugger açıksa kapat
+scripts\build_server.bat tekrar çalıştır
+Eski argüman testi (serve --model model.ckptq, llama3.2 yok) Load failed vermedi — sunucu ~6 dk ayakta kaldı; bu yüzden sonraki derlemede LNK1168 (exe kilitli) oluştu.
+
+Şu an durum:
+
+Yeni exe derlendi: LLM [hybrid-backend]
+Hibrit sunucu: scripts\run_server_hybrid.bat
+Yerel only: scripts\run_server.bat
+
+scripts\run_chat_android.bat artık önce ensure_emulator.bat çağırıyor:
+
+Durum	Davranış
+Emülatör kapalı
+İlk AVD’yi açar (Medium_Phone)
+Emülatör açık
+Dokunmaz, restart etmez
+Boot
+sys.boot_completed=1 olana kadar bekler
+Kullanım:
+
+scripts\run_chat_android.bat
+İsteğe bağlı — belirli AVD:
+
+
+set ANDROID_AVD=Medium_Phone
+scripts\run_chat_android.bat
+
+
+2. Expo Go ile:
+
+scripts\run_chat_android.bat
+Expo Go açılır → proje yüklenir.
+
+3. Kendi ikonunu istiyorsan (Expo Go yok):
+
+scripts\run_chat_android_install.bat
+Emülatöre LLM Chat kurulur (ilk sefer 5–10 dk).
+
+Sunucu
+Ayrı terminal:
+
+scripts\run_server_hybrid.bat
+
+
+scripts\run_chat_android_install.bat  bu script bittiğinde başka birşey çalıştırmama gerek varmı
+
+Script başarıyla biterse genelde başka bir şey çalıştırmana gerek yok.
+
+Script zaten şunları yapıyor:
+
+Emülatörü açar
+LLM sunucusunu ayrı pencerede başlatır
+LLM Chat’i emülatöre kurar ve açar
+Metro (JS bundler) o terminalde çalışır kalır
+Senden beklenen
+Emülatörde LLM Chat açılır → sohbet et
+Ollama kullanacaksan (varsayılan): Ollama arka planda çalışsın, model yüklü olsun:
+ollama pull llama3.2
+Sunucu adresi emülatörde: http://10.0.2.2:8765 (varsayılan)
+Ne zaman ekstra bir şey gerekir?
+Durum	Ne yap
+“LLM Server” penceresini kapattın
+scripts\run_server_hybrid.bat
+Ollama cevap vermiyor
+Ollama uygulamasını aç / ollama serve
+Yerel model seçtin
+scripts\prepare_model.bat (bir kez)
+Uygulama açılmadı
+Emülatörde LLM Chat ikonuna dokun
+Terminal kapandı, kod değiştirdin
+cd chat_rn → npx expo start
+
+
+Doğru derleme
+LLM sunucusu (C++):
+
+scripts\build_server.bat
+Sunucu + unit testler:
+
+scripts\build_all.bat
+Yanlış proje: chat_app / flutter_assemble → Flutter Windows; LLM sunucusu değil.
+
+LNK1168: CMakeProject2.exe açıksa kapat, script zaten taskkill yapıyor.
+
+Visual Studio’da File → Open → Folder → repo kökü (CMakeProject2), out\build\x64-debug CMake cache ile aç.
+
+Eğitim bitince:
+
+
+scripts\stop_all.bat
+scripts\run_server_local.bat
+veya hibrit mod:
+
+scripts\run_server_hybrid.bat
+
+Eğitim bitince
+Sunucuyu yeniden başlat: scripts\run_server_local.bat
+Uygulamada Yerel model seç
+App’i yeniden kurmana gerek yok; gerekirse sadece kapat-aç
+
+
+windows app exe:
+C:\Users\dogan.koc\source\repos\CMakeProject2\chat_app\build\windows\x64\runner\Release
+llm_chat.exe

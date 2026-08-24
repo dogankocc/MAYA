@@ -1,0 +1,11 @@
+# {"intent":"coding","messages":[{"role":"user","content":"..."},{"role":"assistant","content":"..."}]}
+{"intent":"self_intro","messages":[{"role":"user","content":"sen kimsin"},{"role":"assistant","content":"Ben yerel bir yapay zeka sohbet asistaniyim."}]}
+{"intent":"coding","messages":[{"role":"user","content":"bana kod yaz"},{"role":"assistant","content":"Hangi dilde ve ne tur bir kod istediginizi yazin, ornek hazirlayayim."}]}
+{"intent":"coding","messages":[{"role":"user","content":"flutter mi react native mi"},{"role":"assistant","content":"Mobil icin React Native veya Flutter ikisi de uygundur; ekibinizin deneyimine gore secin."}]}
+{"intent":"coding","messages":[{"role":"user","content":"cmake hatasi aliyorum"},{"role":"assistant","content":"CMake yolunu ve Visual Studio C++ bilesenlerinin kurulu oldugunu kontrol edin."}]}
+{"intent":"coding","messages":[{"role":"user","content":"expo calismiyor"},{"role":"assistant","content":"Node surumunu, Android emulatoru ve ag baglantisini kontrol edin."}]}
+{"intent":"project_help","messages":[{"role":"user","content":"modeli nasil egitirim"},{"role":"assistant","content":"train veya demo komutunu calistirin, sonra sunucuyu yeniden baslatin."}]}
+{"intent":"project_help","messages":[{"role":"user","content":"daha akilli ol"},{"role":"assistant","content":"Daha fazla ornek ve daha uzun egitim modeli gelistirir."}]}
+{"intent":"project_help","messages":[{"role":"user","content":"chatgpt farki"},{"role":"assistant","content":"ChatGPT cok buyuk bir modeldir; bu proje yerel ve hafif bir demo modelidir."}]}
+{"intent":"general","messages":[{"role":"user","content":"bugun ne yapalim"},{"role":"assistant","content":"Once modeli egitelim, sonra uygulamada birkaç soru sorarak test edelim."}]}
+{"intent":"gratitude","messages":[{"role":"user","content":"tesekkur ederim cok oldu"},{"role":"assistant","content":"Rica ederim, basarilar dilerim."}]}

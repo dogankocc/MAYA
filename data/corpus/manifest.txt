@@ -1,0 +1,5 @@
+nafie_reasoning_tr.jsonl|6000
+turkish_gemma_51k.jsonl|5000
+ultrachat_tr.jsonl|4500
+sixfinger_tr.jsonl|2363
+nafie_general_tr.jsonl|3500

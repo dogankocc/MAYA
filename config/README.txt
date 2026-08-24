@@ -1,0 +1,37 @@
+================================================================================
+config - ORNEK MODEL YAPILANDIRMASI
+================================================================================
+
+Bu klasor, LLM model hiperparametrelerinin ornek dosyalarini icerir.
+
+
+================================================================================
+model.conf
+================================================================================
+
+Key=value formatinda Transformer ayarlari. Ornek:
+
+  vocab_size=32000
+  hidden_dim=512
+  num_layers=6
+  num_heads=8
+  num_kv_heads=8
+  intermediate_dim=2048
+  max_seq_len=2048
+  rope_theta=10000
+  norm_eps=0.00001
+
+# ile baslayan satirlar yorumdur.
+
+Yukleme:
+  auto result = llm::Config::LoadFromFile("config/model.conf");
+  if (result.IsOk()) {
+      const llm::ModelConfig& cfg = result.Value();
+  }
+
+Kaydetme:
+  llm::Config::SaveToFile(cfg, "config/model.conf");
+
+Alan aciklamalari icin: llm/include/llm/core/README.txt (config.hpp bolumu)
+
+================================================================================

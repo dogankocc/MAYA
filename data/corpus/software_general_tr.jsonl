@@ -1,0 +1,141 @@
+# devam eden benzer varyasyonlar ile toplam 1000 satır:
+{"intent":"greeting","messages":[{"role":"user","content":"merhaba"},{"role":"assistant","content":"Merhaba, nasil yardimci olabilirim"}]}
+{"intent":"gratitude","messages":[{"role":"user","content":"nasilsin"},{"role":"assistant","content":"Iyiyim tesekkur ederim siz nasilsiniz"}]}
+{"intent":"general","messages":[{"role":"user","content":"adın ne"},{"role":"assistant","content":"Ben yerel bir yapay zeka asistaniyim"}]}
+{"intent":"self_intro","messages":[{"role":"user","content":"ne yapabilirsin"},{"role":"assistant","content":"Sorulari yanitlayabilir ve ornekler sunabilirim"}]}
+{"intent":"technical","messages":[{"role":"user","content":"python nedir"},{"role":"assistant","content":"Python populer bir programlama dilidir"}]}
+{"intent":"general","messages":[{"role":"user","content":"java nedir"},{"role":"assistant","content":"Java nesne yonelimli bir programlama dilidir"}]}
+{"intent":"coding","messages":[{"role":"user","content":"kod yaz"},{"role":"assistant","content":"Hangi dilde kod istediginizi belirtin"}]}
+{"intent":"coding","messages":[{"role":"user","content":"hata aliyorum"},{"role":"assistant","content":"Hatayi ve kodu paylasin yardim edeyim"}]}
+{"intent":"general","messages":[{"role":"user","content":"mysql baglanti"},{"role":"assistant","content":"Host ve port bilgilerini kontrol edin"}]}
+{"intent":"technical","messages":[{"role":"user","content":"api nedir"},{"role":"assistant","content":"API yazilimlar arasi iletisim saglar"}]}
+{"intent":"general","messages":[{"role":"user","content":"http nedir"},{"role":"assistant","content":"Web protokoludur"}]}
+{"intent":"general","messages":[{"role":"user","content":"json nedir"},{"role":"assistant","content":"Veri degisim formatidir"}]}
+{"intent":"technical","messages":[{"role":"user","content":"xml nedir"},{"role":"assistant","content":"Yapilandirilmis veri formatidir"}]}
+{"intent":"general","messages":[{"role":"user","content":"react nedir"},{"role":"assistant","content":"JavaScript kutuphanesidir"}]}
+{"intent":"general","messages":[{"role":"user","content":"angular nedir"},{"role":"assistant","content":"Frontend frameworktur"}]}
+{"intent":"general","messages":[{"role":"user","content":"vue nedir"},{"role":"assistant","content":"Hafif frontend frameworktur"}]}
+{"intent":"general","messages":[{"role":"user","content":"css nedir"},{"role":"assistant","content":"Tasarim dili"}]}
+{"intent":"general","messages":[{"role":"user","content":"html nedir"},{"role":"assistant","content":"Web isaretleme dili"}]}
+{"intent":"general","messages":[{"role":"user","content":"js nedir"},{"role":"assistant","content":"JavaScript kisaltmasi"}]}
+{"intent":"personal_profile","messages":[{"role":"user","content":"node nedir"},{"role":"assistant","content":"JavaScript calisma ortami"}]}
+{"intent":"general","messages":[{"role":"user","content":"express nedir"},{"role":"assistant","content":"Node frameworkudur"}]}
+{"intent":"technical","messages":[{"role":"user","content":"docker nedir"},{"role":"assistant","content":"Konteyner teknolojisi"}]}
+{"intent":"technical","messages":[{"role":"user","content":"kubernetes nedir"},{"role":"assistant","content":"Orkestrasyon sistemi"}]}
+{"intent":"general","messages":[{"role":"user","content":"git nedir"},{"role":"assistant","content":"Versiyon kontrol sistemi"}]}
+{"intent":"coding","messages":[{"role":"user","content":"github nedir"},{"role":"assistant","content":"Kod depolama platformu"}]}
+{"intent":"general","messages":[{"role":"user","content":"git pull nedir"},{"role":"assistant","content":"Degisiklik cekme komutu"}]}
+{"intent":"general","messages":[{"role":"user","content":"git push nedir"},{"role":"assistant","content":"Degisiklik gonderme komutu"}]}
+{"intent":"general","messages":[{"role":"user","content":"merge nedir"},{"role":"assistant","content":"Degisiklik birlestirme"}]}
+{"intent":"technical","messages":[{"role":"user","content":"branch nedir"},{"role":"assistant","content":"Dal yapisi"}]}
+{"intent":"general","messages":[{"role":"user","content":"oop nedir"},{"role":"assistant","content":"Nesne yonelimli programlama"}]}
+{"intent":"general","messages":[{"role":"user","content":"class nedir"},{"role":"assistant","content":"Sinif tanimi"}]}
+{"intent":"general","messages":[{"role":"user","content":"object nedir"},{"role":"assistant","content":"Sinif ornegi"}]}
+{"intent":"technical","messages":[{"role":"user","content":"inheritance nedir"},{"role":"assistant","content":"Kalıtım yapisi"}]}
+{"intent":"general","messages":[{"role":"user","content":"polymorphism nedir"},{"role":"assistant","content":"Cok bicimlilik"}]}
+{"intent":"general","messages":[{"role":"user","content":"encapsulation nedir"},{"role":"assistant","content":"Veri gizleme prensibi"}]}
+{"intent":"general","messages":[{"role":"user","content":"solid nedir"},{"role":"assistant","content":"Yazilim prensipleri"}]}
+{"intent":"general","messages":[{"role":"user","content":"dry nedir"},{"role":"assistant","content":"Tekrar etmeme ilkesi"}]}
+{"intent":"technical","messages":[{"role":"user","content":"api test"},{"role":"assistant","content":"Postman kullanabilirsiniz"}]}
+{"intent":"general","messages":[{"role":"user","content":"unit test nedir"},{"role":"assistant","content":"Birim testidir"}]}
+{"intent":"general","messages":[{"role":"user","content":"integration test nedir"},{"role":"assistant","content":"Entegrasyon testi"}]}
+{"intent":"general","messages":[{"role":"user","content":"selenium nedir"},{"role":"assistant","content":"Test araci"}]}
+{"intent":"general","messages":[{"role":"user","content":"cypress nedir"},{"role":"assistant","content":"Frontend test araci"}]}
+{"intent":"coding","messages":[{"role":"user","content":"debug nedir"},{"role":"assistant","content":"Hata ayiklama"}]}
+{"intent":"general","messages":[{"role":"user","content":"log nedir"},{"role":"assistant","content":"Kayit sistemi"}]}
+{"intent":"technical","messages":[{"role":"user","content":"performance nasil artar"},{"role":"assistant","content":"Cache ve optimizasyon yapin"}]}
+{"intent":"general","messages":[{"role":"user","content":"cache nedir"},{"role":"assistant","content":"On bellekleme"}]}
+{"intent":"general","messages":[{"role":"user","content":"redis nedir"},{"role":"assistant","content":"In memory veri tabani"}]}
+{"intent":"general","messages":[{"role":"user","content":"mongodb nedir"},{"role":"assistant","content":"NoSQL veri tabani"}]}
+{"intent":"general","messages":[{"role":"user","content":"sql nedir"},{"role":"assistant","content":"Sorgu dili"}]}
+{"intent":"general","messages":[{"role":"user","content":"postgresql nedir"},{"role":"assistant","content":"Iliskisel veri tabani"}]}
+{"intent":"general","messages":[{"role":"user","content":"index nedir"},{"role":"assistant","content":"Sorgu hizlandirma"}]}
+{"intent":"general","messages":[{"role":"user","content":"join nedir"},{"role":"assistant","content":"Tablo birlestirme"}]}
+{"intent":"general","messages":[{"role":"user","content":"inner join nedir"},{"role":"assistant","content":"Ortak kayitlar"}]}
+{"intent":"general","messages":[{"role":"user","content":"left join nedir"},{"role":"assistant","content":"Sol tablo bazli"}]}
+{"intent":"general","messages":[{"role":"user","content":"right join nedir"},{"role":"assistant","content":"Sag tablo bazli"}]}
+{"intent":"general","messages":[{"role":"user","content":"full join nedir"},{"role":"assistant","content":"Tum kayitlar"}]}
+{"intent":"general","messages":[{"role":"user","content":"crud nedir"},{"role":"assistant","content":"Create Read Update Delete"}]}
+{"intent":"general","messages":[{"role":"user","content":"rest nedir"},{"role":"assistant","content":"HTTP tabanli servis"}]}
+{"intent":"general","messages":[{"role":"user","content":"soap nedir"},{"role":"assistant","content":"XML tabanli servis"}]}
+{"intent":"general","messages":[{"role":"user","content":"graphql nedir"},{"role":"assistant","content":"Sorgu dili"}]}
+{"intent":"general","messages":[{"role":"user","content":"jwt nedir"},{"role":"assistant","content":"Kimlik dogrulama tokeni"}]}
+{"intent":"general","messages":[{"role":"user","content":"auth nedir"},{"role":"assistant","content":"Yetkilendirme"}]}
+{"intent":"general","messages":[{"role":"user","content":"login nedir"},{"role":"assistant","content":"Giris islemi"}]}
+{"intent":"general","messages":[{"role":"user","content":"logout nedir"},{"role":"assistant","content":"Cikis islemi"}]}
+{"intent":"general","messages":[{"role":"user","content":"register nedir"},{"role":"assistant","content":"Kayit islemi"}]}
+{"intent":"general","messages":[{"role":"user","content":"encryption nedir"},{"role":"assistant","content":"Sifreleme"}]}
+{"intent":"general","messages":[{"role":"user","content":"hash nedir"},{"role":"assistant","content":"Tek yonlu sifreleme"}]}
+{"intent":"general","messages":[{"role":"user","content":"ssl nedir"},{"role":"assistant","content":"Guvenli baglanti"}]}
+{"intent":"general","messages":[{"role":"user","content":"https nedir"},{"role":"assistant","content":"Guvenli protokol"}]}
+{"intent":"general","messages":[{"role":"user","content":"cors nedir"},{"role":"assistant","content":"Kaynak paylasimi"}]}
+{"intent":"project_help","messages":[{"role":"user","content":"proxy nedir"},{"role":"assistant","content":"Araci sunucu"}]}
+{"intent":"general","messages":[{"role":"user","content":"load balancer nedir"},{"role":"assistant","content":"Yuk dagitimi"}]}
+{"intent":"general","messages":[{"role":"user","content":"microservice nedir"},{"role":"assistant","content":"Moduler mimari"}]}
+{"intent":"general","messages":[{"role":"user","content":"monolith nedir"},{"role":"assistant","content":"Tek parca sistem"}]}
+{"intent":"general","messages":[{"role":"user","content":"devops nedir"},{"role":"assistant","content":"Gelisim ve operasyon"}]}
+{"intent":"general","messages":[{"role":"user","content":"ci cd nedir"},{"role":"assistant","content":"Surekli entegrasyon ve dagitim"}]}
+{"intent":"general","messages":[{"role":"user","content":"pipeline nedir"},{"role":"assistant","content":"Is akisi hattı"}]}
+{"intent":"general","messages":[{"role":"user","content":"build nedir"},{"role":"assistant","content":"Derleme islemi"}]}
+{"intent":"general","messages":[{"role":"user","content":"deploy nedir"},{"role":"assistant","content":"Yayinlama"}]}
+{"intent":"project_help","messages":[{"role":"user","content":"server nedir"},{"role":"assistant","content":"Sunucu"}]}
+{"intent":"general","messages":[{"role":"user","content":"client nedir"},{"role":"assistant","content":"Istemci"}]}
+{"intent":"general","messages":[{"role":"user","content":"frontend nedir"},{"role":"assistant","content":"Kullanici arayuzu"}]}
+{"intent":"project_help","messages":[{"role":"user","content":"backend nedir"},{"role":"assistant","content":"Sunucu tarafi"}]}
+{"intent":"general","messages":[{"role":"user","content":"fullstack nedir"},{"role":"assistant","content":"Tum katmanlar"}]}
+{"intent":"project_help","messages":[{"role":"user","content":"mobile nedir"},{"role":"assistant","content":"Mobil uygulama"}]}
+{"intent":"project_help","messages":[{"role":"user","content":"android nedir"},{"role":"assistant","content":"Mobil isletim sistemi"}]}
+{"intent":"general","messages":[{"role":"user","content":"ios nedir"},{"role":"assistant","content":"Apple isletim sistemi"}]}
+{"intent":"coding","messages":[{"role":"user","content":"flutter nedir"},{"role":"assistant","content":"Google UI framework"}]}
+{"intent":"coding","messages":[{"role":"user","content":"react native nedir"},{"role":"assistant","content":"JS mobil framework"}]}
+{"intent":"general","messages":[{"role":"user","content":"swift nedir"},{"role":"assistant","content":"iOS dili"}]}
+{"intent":"general","messages":[{"role":"user","content":"kotlin nedir"},{"role":"assistant","content":"Android dili"}]}
+{"intent":"general","messages":[{"role":"user","content":"java hata"},{"role":"assistant","content":"Stacktrace inceleyin"}]}
+{"intent":"general","messages":[{"role":"user","content":"null pointer"},{"role":"assistant","content":"Deger bos olabilir"}]}
+{"intent":"general","messages":[{"role":"user","content":"out of memory"},{"role":"assistant","content":"Bellek yetmiyor"}]}
+{"intent":"general","messages":[{"role":"user","content":"timeout"},{"role":"assistant","content":"Sure asimi"}]}
+{"intent":"general","messages":[{"role":"user","content":"syntax error"},{"role":"assistant","content":"Yazim hatasi"}]}
+{"intent":"general","messages":[{"role":"user","content":"runtime error"},{"role":"assistant","content":"Calisma hatasi"}]}
+{"intent":"coding","messages":[{"role":"user","content":"compile error"},{"role":"assistant","content":"Derleme hatasi"}]}
+{"intent":"general","messages":[{"role":"user","content":"memory leak"},{"role":"assistant","content":"Bellek sizintisi"}]}
+{"intent":"general","messages":[{"role":"user","content":"thread nedir"},{"role":"assistant","content":"Is parcacigi"}]}
+{"intent":"general","messages":[{"role":"user","content":"process nedir"},{"role":"assistant","content":"Calisan program"}]}
+{"intent":"general","messages":[{"role":"user","content":"async nedir"},{"role":"assistant","content":"Eszamansiz islem"}]}
+{"intent":"general","messages":[{"role":"user","content":"await nedir"},{"role":"assistant","content":"Bekleme komutu"}]}
+{"intent":"general","messages":[{"role":"user","content":"promise nedir"},{"role":"assistant","content":"Asenkron sonuc"}]}
+{"intent":"general","messages":[{"role":"user","content":"callback nedir"},{"role":"assistant","content":"Geri cagrim"}]}
+{"intent":"general","messages":[{"role":"user","content":"event nedir"},{"role":"assistant","content":"Tetiklenen aksiyon"}]}
+{"intent":"technical","messages":[{"role":"user","content":"loop nedir"},{"role":"assistant","content":"Dongu yapisi"}]}
+{"intent":"general","messages":[{"role":"user","content":"for nedir"},{"role":"assistant","content":"Dongu komutu"}]}
+{"intent":"general","messages":[{"role":"user","content":"while nedir"},{"role":"assistant","content":"Dongu kosulu"}]}
+{"intent":"general","messages":[{"role":"user","content":"if nedir"},{"role":"assistant","content":"Sart kontrolu"}]}
+{"intent":"general","messages":[{"role":"user","content":"else nedir"},{"role":"assistant","content":"Alternatif kosul"}]}
+{"intent":"technical","messages":[{"role":"user","content":"array nedir"},{"role":"assistant","content":"Dizi yapisi"}]}
+{"intent":"general","messages":[{"role":"user","content":"list nedir"},{"role":"assistant","content":"Liste"}]}
+{"intent":"general","messages":[{"role":"user","content":"map nedir"},{"role":"assistant","content":"Anahtar deger"}]}
+{"intent":"general","messages":[{"role":"user","content":"set nedir"},{"role":"assistant","content":"Tekil veri"}]}
+{"intent":"general","messages":[{"role":"user","content":"tuple nedir"},{"role":"assistant","content":"Degismez liste"}]}
+{"intent":"general","messages":[{"role":"user","content":"function nedir"},{"role":"assistant","content":"Fonksiyon"}]}
+{"intent":"general","messages":[{"role":"user","content":"method nedir"},{"role":"assistant","content":"Sinif fonksiyonu"}]}
+{"intent":"general","messages":[{"role":"user","content":"lambda nedir"},{"role":"assistant","content":"Kisa fonksiyon"}]}
+{"intent":"general","messages":[{"role":"user","content":"recursion nedir"},{"role":"assistant","content":"Kendi cagirma"}]}
+{"intent":"technical","messages":[{"role":"user","content":"stack nedir"},{"role":"assistant","content":"Yigin yapisi"}]}
+{"intent":"technical","messages":[{"role":"user","content":"queue nedir"},{"role":"assistant","content":"Kuyruk yapisi"}]}
+{"intent":"technical","messages":[{"role":"user","content":"binary tree nedir"},{"role":"assistant","content":"Agac yapisi"}]}
+{"intent":"technical","messages":[{"role":"user","content":"graph nedir"},{"role":"assistant","content":"Graf veri yapisi"}]}
+{"intent":"general","messages":[{"role":"user","content":"dfs nedir"},{"role":"assistant","content":"Derinlik arama"}]}
+{"intent":"general","messages":[{"role":"user","content":"bfs nedir"},{"role":"assistant","content":"Genislik arama"}]}
+{"intent":"general","messages":[{"role":"user","content":"sorting nedir"},{"role":"assistant","content":"Siralamak"}]}
+{"intent":"general","messages":[{"role":"user","content":"quick sort nedir"},{"role":"assistant","content":"Hizli siralama"}]}
+{"intent":"general","messages":[{"role":"user","content":"merge sort nedir"},{"role":"assistant","content":"Bol birlestir"}]}
+{"intent":"general","messages":[{"role":"user","content":"binary search nedir"},{"role":"assistant","content":"Ikili arama"}]}
+{"intent":"general","messages":[{"role":"user","content":"kisa cevap ver"},{"role":"assistant","content":"Kisa cevap vermeye calisirim"}]}
+{"intent":"general","messages":[{"role":"user","content":"uzun cevap ver"},{"role":"assistant","content":"Detayli anlatabilirim"}]}
+{"intent":"general","messages":[{"role":"user","content":"yardim et"},{"role":"assistant","content":"Tabii nasil yardim edeyim"}]}
+{"intent":"general","messages":[{"role":"user","content":"problem var"},{"role":"assistant","content":"Detay verirseniz cozum buluruz"}]}
+{"intent":"general","messages":[{"role":"user","content":"hizli ol"},{"role":"assistant","content":"Mumkun oldugunca hizli cevaplarim"}]}
+{"intent":"general","messages":[{"role":"user","content":"ornek ver"},{"role":"assistant","content":"Ornekler ile aciklayabilirim"}]}
+{"intent":"general","messages":[{"role":"user","content":"detay ver"},{"role":"assistant","content":"Detayli bilgi sunabilirim"}]}
+{"intent":"general","messages":[{"role":"user","content":"sade anlat"},{"role":"assistant","content":"Basit sekilde anlatirim"}]}
+{"intent":"general","messages":[{"role":"user","content":"zor oldu"},{"role":"assistant","content":"Daha basit anlatayim mi"}]}
+{"intent":"general","messages":[{"role":"user","content":"anlamadim"},{"role":"assistant","content":"Tekrar aciklayabilirim"}]}

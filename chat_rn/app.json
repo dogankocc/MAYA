@@ -1,0 +1,33 @@
+{
+  "expo": {
+    "name": "LLM Chat",
+    "slug": "llm-chat-rn",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "scheme": "llm-chat",
+    "newArchEnabled": false,
+    "plugins": [
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
+        }
+      ],
+      "expo-localization",
+      "expo-asset",
+      "expo-font"
+    ],
+    "android": {
+      "package": "com.llm.chat",
+      "adaptiveIcon": {
+        "backgroundColor": "#1A1B2E"
+      }
+    },
+    "ios": {
+      "bundleIdentifier": "com.llm.chat"
+    }
+  }
+}

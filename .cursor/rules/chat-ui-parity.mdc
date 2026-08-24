@@ -1,0 +1,21 @@
+---
+description: Keep Android (chat_rn) and Windows (chat_app) chat UIs in feature parity
+globs:
+  - chat_rn/**
+  - chat_app/**
+---
+
+# Chat UI parity (Android + Windows)
+
+When changing either client, update **both**:
+
+| Platform | Path |
+|----------|------|
+| Android (Expo RN) | `chat_rn/` |
+| Windows (Flutter) | `chat_app/` |
+
+Mirror the same features: settings fields, API calls (`/api/v1/config`), i18n keys (EN + TR), and chat status (model name).
+
+Model source options: **Local model** (`local`) | **OpenAI / Ollama** (`openai`).
+
+Both apps persist `modelBackend` and `openAiModel` locally and sync to the server on init/save.
