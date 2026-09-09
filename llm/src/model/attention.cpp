@@ -27,7 +27,7 @@ void MultiHeadAttention::ResetParameters(std::mt19937& rng) {
   output_.ResetParameters(rng);
 }
 
-Status MultiHeadAttention::Forward(const Tensor& input, const RopeCache& rope, Tensor& output) const {
+Status MultiHeadAttention::Forward(const Tensor& input, const RopeCache& cache, Tensor& output) const {
   if (input.Rank() != 2 || input.GetShape()[1] != config_.hiddenDim) {
     return Status::Fail(ErrorCode::InvalidArgument, "attention input must be [seq, hidden_dim]");
   }
@@ -50,8 +50,8 @@ Status MultiHeadAttention::Forward(const Tensor& input, const RopeCache& rope, T
     return Status::Fail(ErrorCode::Internal, "attention projection failed");
   }
 
-  ApplyRope(queries, rope, numHeads, headDim);
-  ApplyRope(keys, rope, numKvHeads, headDim);
+  ApplyRope(queries, cache, numHeads, headDim);
+  ApplyRope(keys, cache, numKvHeads, headDim);
 
   Tensor merged = Tensor::Zeros(Shape{seqLen, config_.hiddenDim});
   const Scalar maskValue = -std::numeric_limits<Scalar>::infinity();
