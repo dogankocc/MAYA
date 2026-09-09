@@ -47,6 +47,9 @@ add_library(llm_core STATIC
   src/training/jsonl_writer.cpp
   src/training/fine_tune.cpp
   src/server/auto_learn_service.cpp
+  src/agent/tool.cpp
+  src/agent/local_agent_backend.cpp
+  src/cli/agent_cli.cpp
 )
 
 target_include_directories(llm_core

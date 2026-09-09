@@ -88,7 +88,7 @@ Status ChatHttpServer::Run(const std::string& host, const int port) {
       }
     }
 
-    backend_->Reset();
+    (void)backend_->Reset();
     res.set_content(detail::BuildConfigJson(backend_->GetConfig()), "application/json");
   });
 

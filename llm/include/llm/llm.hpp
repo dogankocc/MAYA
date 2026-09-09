@@ -28,3 +28,7 @@
 #include "llm/training/trainer.hpp"
 #include "llm/training/loss.hpp"
 #include "llm/training/adamw.hpp"
+#include "llm/agent/tool.hpp"
+#include "llm/agent/agent_backend.hpp"
+#include "llm/agent/local_agent_backend.hpp"
+#include "llm/cli/agent_cli.hpp"

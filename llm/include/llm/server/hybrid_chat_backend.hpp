@@ -4,6 +4,8 @@
 #include <mutex>
 #include <string>
 
+#include "llm/agent/agent_backend.hpp"
+#include "llm/agent/local_agent_backend.hpp"
 #include "llm/core/status.hpp"
 #include "llm/server/chat_backend.hpp"
 #include "llm/server/local_chat_backend.hpp"
@@ -18,6 +20,7 @@ struct HybridBackendConfig {
   std::string apiKey;
   std::string openAiModel = "llama3.2";
   std::string activeBackend = "openai";
+  bool enableAgentMode = true;
 };
 
 struct ServerConfig {
@@ -48,6 +51,12 @@ public:
 
   [[nodiscard]] const HybridBackendConfig& GetBackendConfig() const { return config_; }
 
+  [[nodiscard]] agent::AgentResponse ExecuteAgent(const agent::AgentRequest& request);
+
+  [[nodiscard]] agent::ToolRegistry& GetAgentToolRegistry();
+
+  [[nodiscard]] bool IsAgentModeAvailable() const;
+
 private:
   [[nodiscard]] ChatBackend* ActiveBackend();
 
@@ -58,6 +67,9 @@ private:
   bool localReady_ = false;
   std::unique_ptr<OpenAiChatBackend> openAi_;
   mutable std::mutex mutex_;
+
+  std::unique_ptr<agent::LocalAgentBackend> agent_;
+  bool agentReady_ = false;
 };
 
 } // namespace llm::server

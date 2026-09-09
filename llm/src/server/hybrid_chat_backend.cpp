@@ -12,6 +12,14 @@ HybridChatBackend::HybridChatBackend(HybridBackendConfig config) : config_(std::
   openAiConfig.model = config_.openAiModel;
   openAi_ = std::make_unique<OpenAiChatBackend>(std::move(openAiConfig));
 
+  if (config_.enableAgentMode && localReady_) {
+    agent_ = std::make_unique<agent::LocalAgentBackend>();
+    agent::AgentConfig agentConfig;
+    agentConfig.modelPath = config_.modelPath;
+    agentConfig.tokenizerPath = config_.tokenizerPath;
+    agentReady_ = agent_->Load(agentConfig).IsOk();
+  }
+
   if (config_.activeBackend == "local" && !localReady_) {
     config_.activeBackend = "openai";
   }
@@ -101,7 +109,42 @@ Status HybridChatBackend::ReloadLocalModel() {
   if (!localReady_) {
     return Status::Fail(ErrorCode::Internal, "failed to reload local model");
   }
+
+  if (config_.enableAgentMode) {
+    if (!agent_) {
+      agent_ = std::make_unique<agent::LocalAgentBackend>();
+    }
+    agent::AgentConfig agentConfig;
+    agentConfig.modelPath = config_.modelPath;
+    agentConfig.tokenizerPath = config_.tokenizerPath;
+    agentReady_ = agent_->Load(agentConfig).IsOk();
+  }
+
   return Status::Ok();
+}
+
+agent::AgentResponse HybridChatBackend::ExecuteAgent(const agent::AgentRequest& request) {
+  agent::AgentResponse response;
+  response.success = false;
+
+  std::lock_guard<std::mutex> lock(mutex_);
+  if (!agentReady_ || !agent_) {
+    response.error = "agent mode not available";
+    return response;
+  }
+
+  return agent_->Execute(request);
+}
+
+agent::ToolRegistry& HybridChatBackend::GetAgentToolRegistry() {
+  if (!agent_) {
+    agent_ = std::make_unique<agent::LocalAgentBackend>();
+  }
+  return agent_->GetToolRegistry();
+}
+
+bool HybridChatBackend::IsAgentModeAvailable() const {
+  return agentReady_;
 }
 
 } // namespace llm::server

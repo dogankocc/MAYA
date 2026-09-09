@@ -18,6 +18,7 @@ namespace {
 void PrintUsage() {
   std::cout << "Usage:\n"
             << "  MAYA chat --model <path> --tokenizer <dir>\n"
+            << "  MAYA agent --model <path> --tokenizer <dir>\n"
             << "  MAYA serve [--backend openai|local] [--port N] [--host H]\n"
             << "                      [--api-host H] [--api-key K] [--model M]\n"
             << "                      [--model-path P] [--tokenizer T]\n"
@@ -332,6 +333,26 @@ int RunChat(int argc, char** argv) {
   return cli.Run();
 }
 
+int RunAgent(int argc, char** argv) {
+  const std::string modelPath = GetArg(argc, argv, "--model", "model.ckptq");
+  const std::string tokenizerPath = GetArg(argc, argv, "--tokenizer", "tokenizer_data");
+
+  llm::agent::LocalAgentBackend agent;
+  llm::agent::AgentConfig config;
+  config.modelPath = modelPath;
+  config.tokenizerPath = tokenizerPath;
+  config.enableTools = true;
+
+  const llm::Status loadStatus = agent.Load(config);
+  if (!loadStatus.IsOk()) {
+    std::cerr << "Agent load failed: " << loadStatus.Message() << '\n';
+    return 1;
+  }
+
+  llm::cli::AgentCli cli(agent);
+  return cli.Run();
+}
+
 int RunQuantize(int argc, char** argv) {
   const std::string inputPath = GetArg(argc, argv, "--input", "model.ckpt");
   const std::string outputPath = GetArg(argc, argv, "--output", "model.ckptq");
@@ -377,6 +398,9 @@ int main(int argc, char** argv) {
   }
   if (command == "chat") {
     return RunChat(argc, argv);
+  }
+  if (command == "agent") {
+    return RunAgent(argc, argv);
   }
   if (command == "quantize") {
     return RunQuantize(argc, argv);
