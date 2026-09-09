@@ -153,8 +153,10 @@ int RunChatTraining(const std::string& outputPath, const std::string& tokenizerP
                     const std::string& corpusDir, const std::string& extraCorpusFile,
                     std::size_t steps, const std::size_t vocabTarget, const bool quantizeAfter,
                     const bool corpusOnly) {
+#if !defined(_WIN32)
   setvbuf(stdout, nullptr, _IOLBF, 0);
   setvbuf(stderr, nullptr, _IOLBF, 0);
+#endif
 
   const std::vector<llm::training::DialogueSample> samples =
       LoadTrainingCorpus(corpusDir, extraCorpusFile, corpusOnly);
@@ -221,7 +223,7 @@ int RunChatTraining(const std::string& outputPath, const std::string& tokenizerP
   }
 
   std::cout << "Training complete. Saved " << outputPath << " and " << tokenizerPath << '\n';
-
+  //Eğitim sonrası FP32 modelini (.ckpt) INT8'e dönüştürerek (.ckptq) kaydet
   if (quantizeAfter) {
     const std::string quantPath = outputPath.size() > 5 && outputPath.ends_with(".ckpt")
                                       ? outputPath.substr(0, outputPath.size() - 5) + ".ckptq"
@@ -232,7 +234,7 @@ int RunChatTraining(const std::string& outputPath, const std::string& tokenizerP
     }
     std::cout << "Quantized checkpoint written to " << quantPath << '\n';
   }
-
+  //Sadece FP32 modelini kaydet, sıkıştırma yapma
   return 0;
 }
 

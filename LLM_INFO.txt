@@ -49,7 +49,7 @@ Sohbeti sıfırla
 
 1. Visual Studio'da doğru projeyi derle
 
-Flutter değil — MAYA (C++ LLM sunucusu):
+MAYA (C++ LLM sunucusu):
 
 
 Solution: MAYA
