@@ -387,8 +387,7 @@ Status BackwardBlock(model::TransformerBlock& block, const ModelConfig& config, 
 
 } // namespace
 
-Status RunTrainBackward(model::TransformerModel& model, ParameterList& parameters, const std::vector<TokenId>& tokens,
-                        float& loss) {
+Status RunTrainBackward(model::TransformerModel& model, ParameterList& parameters, const std::vector<TokenId>& tokens, float& loss) {
   if (tokens.size() < 2) {
     return Status::Fail(ErrorCode::InvalidArgument, "training requires at least two tokens");
   }
