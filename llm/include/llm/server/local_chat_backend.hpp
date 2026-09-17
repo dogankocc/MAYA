@@ -5,7 +5,6 @@
 #include <string>
 
 #include "llm/cli/chat_session.hpp"
-#include "llm/nlp/corpus_retriever.hpp"
 #include "llm/server/chat_backend.hpp"
 
 namespace llm::server {
@@ -25,7 +24,6 @@ private:
 
   mutable std::mutex mutex_;
   cli::ChatSession session_;
-  nlp::CorpusRetriever retriever_;
   std::mt19937 rng_{std::random_device{}()};
 };
 

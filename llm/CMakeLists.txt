@@ -40,7 +40,6 @@ add_library(llm_core STATIC
   src/training/transformer_train.cpp
   src/training/trainer.cpp
   src/nlp/intent_classifier.cpp
-  src/nlp/corpus_retriever.cpp
   src/training/dialogue_format.cpp
   src/training/chat_corpus.cpp
   src/training/jsonl_parser.cpp

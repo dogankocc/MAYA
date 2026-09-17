@@ -56,8 +56,30 @@ MAYA/<br>
 <tr><td>Server</td><td>Local + OpenAI Hybrid, HTTP API</td></tr>
 </table>
 
-<h2>2. TOKENIZER (BPE)</h2>
-<p>Byte-Pair Encoding (BPE), veri sikistirma algoritmasi olup NLP'de tokenizasyon icin kullanilir. En sik gorulen byte ciflerini yeni tokenlerle degistirir.</p>
+<h2>2. TOKENIZER (BPE) - DETAYLI</h2>
+
+<p><strong>IS PARMACIGI (THREAD):</strong> Bu islemler <strong>ANA IS PARMACIGI</strong> (main thread) uzerinde yapilir. Egitim sirasinda ana thread, batchleri sira sira isler ve her batch icin tokenizer cagrilir.</p>
+
+<p><strong>Vocabulary Nedir?</strong> Sozluk, tokenler ile sayisal ID'ler arasindaki iki yonlu eslesmedir. Model <strong>sayilarla calisir</strong>, metinlerle degil. Her kelime veya alt-kelimelik benzersiz bir tamsayi ile temsil edilir.</p>
+
+<h3>2.1 Vocabulary Yapisi</h3>
+<pre><code>// llm/include/llm/tokenizer/vocabulary.hpp
+class Vocabulary {
+private:
+  // ID -> Token: [0] = "▁", [1] = "a", [2] = "b", ...
+  std::vector&lt;std::string&gt; idToToken_;
+  // Token -> ID: "▁" -> 0, "a" -> 1, ...
+  std::unordered_map&lt;std::string, TokenId&gt; tokenToId_;
+};
+</code></pre>
+
+<p><strong>Ornek:</strong></p>
+<table>
+<tr><th>Token</th><th>ID</th><th>Aciklama</th></tr>
+<tr><td>▁</td><td>0</td><td>Kelime baslangici isareti</td></tr>
+<tr><td>a</td><td>1</td><td>Tek karakter</td></tr>
+<tr><td>merhaba</td><td>156</td><td>Ogrenilmis alt-kelimelik</td></tr>
+</table>
 
 <h3>Ozel Tokenler</h3>
 <table>
@@ -170,11 +192,81 @@ Status BpeTokenizer::Train(const std::string& corpus, std::size_t targetVocabSiz
 }
 </code></pre>
 
+<h3>2.2 BPE Egitim Algoritmasi</h3>
+
+<p><strong>Amac:</strong> Buyuk bir metin corpusundan, en sik gorunen karakter/alt-kelimelik ciftlerini birlestirerek verimli bir sozluk olusturmak.</p>
+
+<h4>Algoritma Adimlari:</h4>
+<pre><code>ADIM 1: BASLANGIC
+  - Corpus'u kelimelere ayir
+  - Her kelimenin BASINA "▁" ekle (kelime baslangici)
+  - Her kelimeyi TEK KARAKTERLERE ayir
+  - Tüm benzersiz karakterleri vocab'a ekle
+
+ADIM 2: DONGU (Hedef vocab boyutuna ulasana kadar)
+  a) Tüm kelimelerde KOMSU ciftlerin FREKANSINI say
+  b) EN SIK görünen cifti BUL
+  c) Bu cifti YENI bir token olarak BIRLESTIR (merge)
+  d) Yeni tokeni vocab'a EKLE
+  e) Bu merge islemini merges.txt'ye KAYDET (oncelik sirasiyla)
+  f) Tekrar adim (a)'ya don
+</code></pre>
+
+<h4>ORNEK: "merhaba dunya merhaba" Corpus'u</h4>
+<pre><code>=== BASLANGIC (Iterasyon 0) ===
+Vocabulary: {▁, m, e, r, h, a, b, d, u, n, y}  → 11 token
+
+Kelimeler:
+  "merhaba" → [▁, m, e, r, h, a, b, a]
+  "dunya"   → [▁, d, u, n, y, a]
+  "merhaba" → [▁, m, e, r, h, a, b, a]
+
+=== ITERASYON 1 ===
+En sik cift: "a"+"b" (4 kere geciyor)
+Merge: "ab" olusur
+Yeni Vocabulary: 12 token
+
+Kelimeler GUNCELLENIR:
+  "merhaba" → [▁, m, e, r, h, ab, a]
+
+=== ITERASYON 2 ===
+En sik cift: "ab"+"a" (2 kere)
+Merge: "aba" → Vocabulary: 13
+
+=== BU SEKILDE 3072 VEYA 32000 TOKEN'E KADAR DEVAM ET ===
+</code></pre>
+
+<p><strong>Onemli Not:</strong> merges.txt dosyasi, merge islemlerini <strong>OGRENILME SIRASIYLA</strong> kaydeder. En SON yapilan merge (en uzun token) aslinda EN COK onceliklidir. Encode sirasinda EN UZUN tokenler ilk uygulanir.</p>
+
+<h3>2.3 Encode (Metin -> Token ID)</h3>
+
+<p><strong>Amac:</strong> Metni modele verebilmek icin sayisal ID dizisine donusturmek.</p>
+
+<h4>Adimlar:</h4>
+<pre><code>ADIM 1: Metni bosluklara gore kelimelere ayir
+ADIM 2: Her kelime icin:
+  a) Kelimenin BASINA "▁" ekle
+  b) Kelimeyi TEK KARAKTERLERE ayir
+  c) merges.txt'deki kurallari UYGULA (EN UZUN tokenler ONCE)
+  d) Sonuclanan token'leri vocab'tan ID'ye cevir
+ADIM 3: ID dizisini dondur
+</code></pre>
+
+<h3>2.4 Decode (Token ID -> Metin)</h3>
+
+<p><strong>Amac:</strong> Modelin urettigi ID dizisini okunabilir metne donusturmek.</p>
+
+<h4>Ozel Kural:</h4>
+<pre><code>- Eger token "▁" ise ve metin BOS degilse, ONCE bosluk ekle
+- Diger tokenleri dogrudan metne ekle
+- Ozel tokenleri (PAD, BOS, EOS) atla
+</code></pre>
+
 <h3>vocab.txt ve merges.txt Iliskisi</h3>
 <table>
 <tr><th>Dosya</th><th>Aciklama</th><th>Format</th></tr>
 <tr><td>vocab.txt</td><td>Token -> ID eslesmesi</td><td>Satir basina token (satir numarasi = ID)</td></tr>
-<tr><td>merges.txt</td><td>BPE merge kurallari</td><td>"left TAB right" (oncelik sirasiyla)</td></tr>
+<tr><td>merges.txt</td><td>BPE merge kurallari</td><td>"left TAB right" (ogrenilme sirasiyla)</td></tr>
 </table>
 
 <h2>3. TRANSFORMER MIMARISI</h2>
@@ -454,15 +546,302 @@ Status TransformerModel::Forward(const std::vector&lt;TokenId&gt;& tokens, Tenso
 }
 </code></pre>
 
-<h2>4. EGITIM SURECI (Training)</h2>
-<p>Egitim sureci: Forward Pass -> Loss Hesaplama -> Backward Pass -> Optimizer Step</p>
+<h2>4. EGITIM SURECI (Training) - DETAYLI</h2>
 
-<h3>4.1 Forward Pass Detaylari</h3>
-<p>Forward Pass, girdi tokenlerinin modele verilerek logitlerin hesaplanmasidir.</p>
-<pre><code>Akis:
-tokens -> token_embedding -> [N transformer katmani] -> RMSNorm -> LM_Head -> logits
+<p><strong>IS PARMACIGI (THREAD):</strong> MAYA'da egitim <strong>TEK IS PARMACIGI</strong> (single-threaded) uzerinde calisir. Egitim dongusu sirasiyla: Forward -> Loss -> Backward -> Optimizer adimlarini ana thread uzerinde yurutur. Gelecekte multi-GPU veya data-parallel egitim eklenseydi, her thread kendi batch parcasini isleyecekti.</p>
 
-logits: [seq_len, vocab_size] - Her token icin vocab olasiliklari
+<p><strong>Temel Kavram:</strong> Modelin "ogrenmesi", agirliklarin (weights) kaybi (loss) azaltacak sekilde guncellenmesidir. Bu 4 ana adimda gerceklesir:</p>
+
+<pre><code>┌─────────────────────────────────────────────────────────────────┐
+│  EGITIM DONGUSU (Her batch icin TEKRARLANIR)                    │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                   │
+│  ┌──────────┐    ┌──────────┐    ┌──────────┐    ┌──────────┐ │
+│  │ FORWARD  │ -> │   LOSS   │ -> │ BACKWARD │ -> │ OPTIMIZER│ │
+│  │  Pass    │    │ Hesaplama│    │  Pass    │    │   Step   │ │
+│  └──────────┘    └──────────┘    └──────────┘    └──────────┘ │
+│       │               │               │               │          │
+│       ↓               ↓               ↓               ↓          │
+│  Model cikti      Ne kadar       Gradientler      Agirliklari  │
+│  (logits)         yanlisim?      hesaplanir       guncellenir  │
+│                                                                   │
+└─────────────────────────────────────────────────────────────────┘
+</code></pre>
+
+<h3>4.1 Forward Pass (Ileri Besleme)</h3>
+
+<p><strong>Amac:</strong> Girdi tokenlerinden modelin ciktilarini (logits) hesaplamak.</p>
+
+<h4>Adim Adim Akis:</h4>
+<pre><code>ADIM 1: TOKEN EMBEDDING
+  - Her token ID'si [hiddenDim] boyutlu bir vektore donusturulur
+  - Ornek: Token 156 ("merhaba") -> [0.1, -0.3, 0.5, ...] (512 deger)
+  - Sonuc: [seqLen, hiddenDim] boyutunda tensor
+
+ADIM 2: TRANSFORMER KATMANLARI (Her katman icin)
+  ┌─────────────────────────────────────────────────────────────┐
+  │  a) RMSNorm: Girdiyi normalize et (varyans 1'e cek)        │
+  │  b) Multi-Head Attention: Baglamsal anlayis olustur         │
+  │     - Q, K, V Projeksiyonlari (Linear layerlar)              │
+  │     - RoPE: Rotary Position Embedding (konum bilgisi)        │
+  │     - Attention Skorlari: Q * K^T / sqrt(d_k)                │
+  │     - Causal Mask: Sadece gecmise bak (gelecegi gormez)     │
+  │     - Softmax: Skorlari olasiliga cevir                       │
+  │     - Agirlikli Toplam: sum(attention_weight * V)            │
+  │     - Output Projeksiyonu                                      │
+  │  c) Residual Baglanti: x + Attention(RMSNorm(x))              │
+  │  d) RMSNorm: Tekrar normalize et                              │
+  │  e) SwiGLU FFN: Dogrusal olmayanlik ekle                      │
+  │     - Gate Projeksiyonu + SiLU aktivasyonu                    │
+  │     - Up Projeksiyonu                                          │
+  │     - Element-wise carpim: SiLU(gate) * up                   │
+  │     - Down Projeksiyonu                                        │
+  │  f) Residual Baglanti: x + FFN(RMSNorm(x))                    │
+  └─────────────────────────────────────────────────────────────┘
+
+ADIM 3: FINAL RMSNorm
+  - Son katman ciktilarini normalize et
+
+ADIM 4: LM HEAD (Dil Modeli Basligi)
+  - [hiddenDim] -> [vocabSize] boyutuna indirge
+  - Sonuc: [seqLen, vocabSize] logits tensoru
+  - Her token icin, vocabulary'deki her tokenin olasiligi
+</code></pre>
+
+<h3>4.2 Loss Hesaplama (CrossEntropy)</h3>
+
+<p><strong>Amac:</strong> Modelin tahmininin gercek degerden ne kadar uzak oldugunu olcmek.</p>
+
+<p><strong>Onemli Detay:</strong> Dil modellemede "hedef", girdinin "bir sonraki tokeni"dir:</p>
+<pre><code>Girdi:  [t0, t1, t2, t3, t4]  (5 token)
+Hedef:  [t1, t2, t3, t4]       (4 token - bir saga kaymis)
+
+Model t0'dan t1'i, t1'den t2'yi ... tahmin etmeli
+</code></pre>
+
+<h4>CrossEntropy Formulu ve Adimlari:</h4>
+<pre><code>ADIM 1: Numerik Kararlilik icin Max Logit Cikar
+  - max_logit = logitler icindeki en buyuk deger
+  - Her logitten max_logit'i cikar (overflow onler)
+  - Neden? exp(buyuk_sayi) cok buyuk olur ve patlar
+
+ADIM 2: Softmax ile Olasilik Hesapla
+  - exp(logit - max_logit) hesapla
+  - Toplamlari al (sumExp)
+  - Her degeri toplama bol: p_i = exp(...) / sumExp
+  - Sonuc: Tüm olasiliklarin toplami = 1
+
+ADIM 3: Loss Hesapla
+  - Hedef tokenin olasiligini bul: p_target
+  - loss = -log(p_target)
+  - Neden -log? 
+    * Tahmin cok dogruysa (p=0.99): -log(0.99) ≈ 0.01 (kucuk loss)
+    * Tahmin cok yanlissa (p=0.01): -log(0.01) ≈ 4.6 (buyuk loss)
+
+ADIM 4: Gradient Hesapla (Backward icin hazirlik)
+  - d_loss/d_logit_i = p_i - target_i
+  - target_i: eger hedef token ise 1, degilse 0
+  - Ornek: Hedef token 567 ise
+    * gradLogits[567] = p_567 - 1  (negatif, bu logiti ARTIRMAK istiyoruz)
+    * Digerleri: gradLogits[i] = p_i    (pozitif, bu logitleri AZALTMAK istiyoruz)
+</code></pre>
+
+<h3>4.3 Backward Pass (Geri Yayilim - Zincir Kurali)</h3>
+
+<p><strong>Amac:</strong> Kayiptan (loss) geriye dogru, HER AGIRLIK icin gradient hesaplamak.</p>
+
+<p><strong>Zincir Kurali (Chain Rule):</strong> Bilesik fonksiyonlarin turevini alma yontemi.</p>
+<pre><code>Eger y = f(g(x)) ise:
+dy/dx = dy/dg * dg/dx
+
+Ornek: L = CrossEntropy(Softmax(Linear(Transformer(Embedding(x)))))
+
+dL/dW_lm_head    = dL/dLogits    * dLogits/dW_lm_head
+dL/dW_final_norm = dL/dNormalized * dNormalized/dW_final_norm
+dL/dW_attn_q     = ... ve boyle EN BASLAYA KADAR geriye dogru
+</code></pre>
+
+<h4>Backward Akisi (Sondan Basa Dogru):</h4>
+<pre><code>Baslangic Noktasi: gradLogits (Loss'tan gelen gradyan)
+
+ADIM 1: LM HEAD Backward
+  - Linear: y = x * W^T
+  - dL/dx = dL/dy * W
+  - dL/dW = dL/dy^T * x
+  - Sonuc: gradNormalized ve gradLmHeadWeight
+
+ADIM 2: FINAL RMSNORM Backward
+  - RMSNorm: y = weight * (x / RMS(x))
+  - Gradyanlar x ve weight icin ayri ayri hesaplanir
+  - Sonuc: gradPreNorm ve gradFinalNormWeight
+
+ADIM 3: TRANSFORMER KATMANLARI Backward (SON KATMANDAN BASLAYARAK)
+  Her katman icin:
+  ┌─────────────────────────────────────────────────────────────┐
+  │  a) Residual Baglanti Backward: Gradyanlar toplanir        │
+  │  b) FFN Backward:                                            │
+  │     - Down Linear Backward                                   │
+  │     - Mul Backward (SiLU(gate) * up)                        │
+  │     - SiLU Backward                                          │
+  │     - Gate ve Up Linear Backward                             │
+  │  c) RMSNorm Backward (FFN oncesi)                           │
+  │  d) Residual Baglanti Backward                               │
+  │  e) Attention Backward:                                      │
+  │     - Output Linear Backward                                 │
+  │     - Attention Skorlari Backward (Softmax sonrasi)         │
+  │     - Q, K, V Backward                                       │
+  │     - RoPE Backward                                          │
+  │     - Q, K, V Linear Backward                                │
+  │  f) RMSNorm Backward (Attention oncesi)                     │
+  └─────────────────────────────────────────────────────────────┘
+
+ADIM 4: TOKEN EMBEDDING Backward
+  - Her token pozisyonundaki gradyan, embedding matrisinde
+    ilgili tokenin satirina AKUMULE edilir
+  - Neden? Birden fazla pozisyon ayni tokeni kullanabilir
+</code></pre>
+
+<h4>Onemli Operasyonlarin Backward'i:</h4>
+<pre><code>=== LINEAR BACKWARD ===
+Linear: y = x * W^T
+dL/dx = dL/dy * W
+dL/dW = dL/dy^T * x
+
+=== MatMul BACKWARD ===
+Eger output = a * b ise
+d_output/d_a = b^T
+d_output/d_b = a^T
+
+=== SiLU BACKWARD ===
+SiLU(x) = x * sigmoid(x)
+dSiLU/dx = sigmoid(x) * (1 + x * (1 - sigmoid(x)))
+
+=== RMSNORM BACKWARD ===
+RMS = sqrt(mean(x^2))
+RMSNorm(x, w) = w * (x / RMS)
+Turev icin x ve w icin ayri hesaplama
+</code></pre>
+
+<h3>4.4 Optimizer Step (AdamW)</h3>
+
+<p><strong>Amac:</strong> Hesaplanan gradientleri kullanarak agirliklari LOSS AZALACAK sekilde guncellemek.</p>
+
+<p><strong>Neden Dogrudan "w = w - lr * gradient" Kullanmiyoruz?</strong></p>
+<pre><code>Problem 1: Gradientler gurultulu olabilir (stochastic)
+Problem 2: Ogrenme orani sabit olmamali (baslangicta hizli, sonlarda yavas)
+Problem 3: Bazı parametreler daha fazla guncellenmeli
+
+COZUM: AdamW (Adaptive Moment Estimation + Weight Decay)
+</code></pre>
+
+<h4>AdamW Formulleri:</h4>
+<pre><code>=== GUNCELLEME ONCESI HESAPLAMALAR ===
+
+1. Birinci Moment (m_t) - Hareketli Ortalama
+   m_t = beta1 * m_{t-1} + (1 - beta1) * g_t
+   
+   beta1 = 0.9 (tipik deger)
+   Bu, gradientin "ortalamasini" tutar
+   Son gradientlerden daha fazla etkilenir
+
+2. Ikinci Moment (v_t) - Hareketli Varyans
+   v_t = beta2 * v_{t-1} + (1 - beta2) * g_t^2
+   
+   beta2 = 0.999 (tipik deger)
+   Bu, gradientin "degiskenligini" tutar
+   Gradient buyuk degisiyorsa, v_t buyuk olur
+
+3. Bias Duzeltmesi
+   m_hat = m_t / (1 - beta1^t)
+   v_hat = v_t / (1 - beta2^t)
+   
+   Neden? Baslangicta m ve v 0'di, onlari yanliliktan kurtar
+
+4. Parametre Guncelleme
+   theta_t = theta_{t-1} - lr * m_hat / (sqrt(v_hat) + eps)
+   
+   eps = 1e-8 (sifira bolunmeyi onler)
+   
+   ANLAM:
+   - m_hat buyukse: daha fazla guncelle
+   - v_hat buyukse: daha AZ guncelle (gradient cok degisiyor, dikkatli ol)
+
+5. Weight Decay (AdamW'ye ozgu - AYRI uygulanir)
+   theta_t = theta_t - lr * weight_decay * theta_{t-1}
+   
+   weight_decay = 0.01 (tipik deger)
+   Bu, agirliklari kucultme egilimindedir (L2 regularizasyon)
+   Asiri ogrenmeyi (overfitting) onler
+</code></pre>
+
+<h4>Adim Adim AdamW Ornegi:</h4>
+<pre><code>Baslangic (t=0):
+  m_0 = 0
+  v_0 = 0
+  w = [1.0, 2.0, 3.0]
+  gradient = [0.1, -0.2, 0.3]
+
+t=1:
+  m_1 = 0.9 * 0 + 0.1 * [0.1, -0.2, 0.3] = [0.01, -0.02, 0.03]
+  v_1 = 0.999 * 0 + 0.001 * [0.01, 0.04, 0.09] = [0.00001, 0.00004, 0.00009]
+  
+  m_hat = [0.01, -0.02, 0.03] / (1 - 0.9^1) ≈ [0.1, -0.2, 0.3]
+  v_hat = [0.00001, 0.00004, 0.00009] / (1 - 0.999^1) ≈ [0.01, 0.04, 0.09]
+  
+  sqrt(v_hat) = [0.1, 0.2, 0.3]
+  update = lr * m_hat / (sqrt(v_hat) + eps)
+  
+  lr=0.001 varsayalim:
+  update = 0.001 * [0.1/0.1, -0.2/0.2, 0.3/0.3] = [0.001, -0.001, 0.001]
+  
+  w = w - update = [0.999, 2.001, 2.999]
+  
+  Weight Decay:
+  w = w - 0.001 * 0.01 * w ≈ hafif kucultulmus
+</code></pre>
+
+<h3>4.5 Egitimde Veri Akisi Ozeti</h3>
+
+<pre><code>┌─────────────────────────────────────────────────────────────────────────┐
+│  VERI AKISI (Bir batch icin)                                             │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                           │
+│  corpus.jsonl -> tokenizer.encode() -> [token_id'leri]                  │
+│       ↓                                                                   │
+│  DataLoader: Batch'lere ayir (orn: [64, 1024] = 64 ornek, 1024 token)│
+│       ↓                                                                   │
+│  ┌─────────────────────────────────────────────────────────────────┐    │
+│  │  FORWARD PASS                                                     │    │
+│  │  tokens -> embedding -> [6 katman transformer] -> RMSNorm ->   │    │
+│  │  LM_Head -> logits[64, 1024, vocabSize]                        │    │
+│  └─────────────────────────────────────────────────────────────────┘    │
+│       ↓                                                                   │
+│  ┌─────────────────────────────────────────────────────────────────┐    │
+│  │  LOSS HESAPLAMA                                                  │    │
+│  │  Hedef = tokens[1:] (bir saga kaymis)                          │    │
+│  │  CrossEntropy(logits, hedef)                                    │    │
+│  │  Sonuc: loss degeri + gradLogits                                │    │
+│  └─────────────────────────────────────────────────────────────────┘    │
+│       ↓                                                                   │
+│  ┌─────────────────────────────────────────────────────────────────┐    │
+│  │  BACKWARD PASS                                                    │    │
+│  │  gradLogits -> LM_Head_grad -> RMSNorm_grad ->                  │    │
+│  │  [her katman icin backward] -> embedding_grad                   │    │
+│  │  Sonuc: TÜM parametrelerin .grad alanlari dolu                  │    │
+│  └─────────────────────────────────────────────────────────────────┘    │
+│       ↓                                                                   │
+│  ┌─────────────────────────────────────────────────────────────────┐    │
+│  │  OPTIMIZER STEP (AdamW)                                          │    │
+│  │  moment1 ve moment2 guncelle                                     │    │
+│  │  bias duzeltmesi uygula                                          │    │
+│  │  parametreleri guncelle: w = w - lr * m_hat/sqrt(v_hat)        │    │
+│  │  weight decay uygula                                             │    │
+│  │  gradientleri sifirla: optimizer.zero_grad()                    │    │
+│  └─────────────────────────────────────────────────────────────────┘    │
+│       ↓                                                                   │
+│  Bir SONRAKI batch icin tekrarla...                                      │
+│                                                                           │
+└─────────────────────────────────────────────────────────────────────────┘
 </code></pre>
 
 <h3>4.2 CrossEntropy Loss Hesaplama</h3>
@@ -1005,6 +1384,311 @@ for (int i = 0; i < maxNewTokens; ++i) {
 
 string response = tokenizer.Decode(generated);
 </code></pre>
+
+<h2>6. CIKARIM SURECI (Inference) - DETAYLI</h2>
+
+<p><strong>IS PARMACIGI (THREAD):</strong> Inference de egitim gibi <strong>ANA IS PARMACIGI</strong> uzerinde calisir. Ancak inference sirasinda BACKWARD PASS yoktur, sadece FORWARD PASS vardir. Bu nedenle inference egitime gore daha az bellek ve daha az hesaplama gerektirir. Kullanici etkilesimli oldugu icin dusuk gecikme (low latency) onemlidir.</p>
+
+<p><strong>Temel Kavram:</strong> Egitilmis modelden yeni tokenler uretmek. Inference 2 ana asamada gerceklesir: PREFILL ve DECODE.</p>
+
+<pre><code>┌─────────────────────────────────────────────────────────────────────────┐
+│  KULLANICI: "Merhaba, 5 * 3 kactir?"                                    │
+│                          ↓                                                │
+│  ┌─────────────────────────────────────────────────────────────────┐    │
+│  │  PREFILL ASAMASI (Ilk islem)                                     │    │
+│  │  - Tum prompt tokenleri aynı anda islenir                        │    │
+│  │  - KV Cache doldurulur (sonraki adimlar icin kaydedilir)        │    │
+│  │  - Son tokenin logitlerinden ILK YENI token secilir             │    │
+│  └─────────────────────────────────────────────────────────────────┘    │
+│                          ↓ (ilk token: "Islem")                          │
+│  ┌─────────────────────────────────────────────────────────────────┐    │
+│  │  DECODE DONGUSU (Her adimda TEK token)                          │    │
+│  │  Adim 1: "Islem" -> model -> next token: "sonucu"              │    │
+│  │  Adim 2: "sonucu" -> model -> next token: "15"                  │    │
+│  │  Adim 3: "15" -> model -> next token: EOS (bitis)               │    │
+│  │                                                                   │    │
+│  │  HER ADIMDA:                                                      │    │
+│  │  - Sadece SON uretilen token islenir                             │    │
+│  │  - KV Cache KULLANILIR (tekrar hesaplama YOK)                   │    │
+│  │  - Yeni K, V degerleri CACHE'E EKLENIR                           │    │
+│  └─────────────────────────────────────────────────────────────────┘    │
+│                          ↓                                                │
+│  KULLANICIYA: "Islem sonucu 15'tir."                                      │
+└─────────────────────────────────────────────────────────────────────────┘
+</code></pre>
+
+<h3>6.1 Neden 2 Asama? (Prefill vs Decode)</h3>
+
+<p><strong>KV Cache Nedir ve Neden Cok Onemli?</strong></p>
+
+<p>Multi-Head Attention'da her token icin Q, K, V hesaplanir:</p>
+<pre><code>Attention(Q, K, V) = softmax(Q * K^T / sqrt(d_k)) * V
+
+Eger KV Cache YOKSA:
+Prompt: [Merhaba, ,, 5, *, 3, kactir, ?]
+
+Decode Adim 1: [Merhaba, ,, 5, *, 3, kactir, ?, Islem]
+               → TUM 9 token icin TEKRADAN attention hesapla!
+               → 9 * 9 = 81 islem
+
+Decode Adim 2: [Merhaba, ,, 5, *, 3, kactir, ?, Islem, sonucu]
+               → TUM 10 token icin TEKRADAN!
+               → 10 * 10 = 100 islem
+
+SONUC: O(n^2) karmasiklik, COK YAVAS!
+</code></pre>
+
+<p><strong>KV Cache ILE:</strong></p>
+<pre><code>Prefill Asamasi:
+[Merhaba, ,, 5, *, 3, kactir, ?]
+→ Tum K ve V degerlerini hesapla ve CACHE'E KAYDET
+→ KV_Cache = [K0, K1, K2, K3, K4, K5, K6, K7]
+→            [V0, V1, V2, V3, V4, V5, V6, V7]
+→ Son tokenin Q'su ile attention hesapla
+→ Sonuc: ILK YENI token
+
+Decode Adim 1: "Islem"
+→ SADECE "Islem" icin K8 ve V8 hesapla
+→ KV_Cache'e EKLE: KV_Cache += [K8, V8]
+→ Q8 ile attention hesapla (K0-K8 ve V0-V8 CACHE'DEN)
+→ Sonuc: "sonucu"
+
+Decode Adim 2: "sonucu"
+→ SADECE "sonucu" icin K9 ve V9 hesapla
+→ KV_Cache'e EKLE
+→ Attention hesapla
+→ Sonuc: "15"
+
+SONUC: HER ADIMDA sadece O(1) yeni hesaplama!
+       O(n) karmasiklik, COK HIZLI!
+</code></pre>
+
+<h3>6.2 Prefill Asamasi Detayli</h3>
+
+<p><strong>Amac:</strong> Kullanicinin girdigi promptu isleyip KV Cache'i doldurmak ve ilk yeni tokeni secmek.</p>
+
+<h4>Adimlar:</h4>
+<pre><code>ADIM 1: Cache'i SIFIRLA
+  - Yeni bir inference oturumu basliyor
+  - Eski KV degerlerini temizle
+
+ADIM 2: Token Embedding
+  - Prompt tokenlerini [seqLen, hiddenDim] tensorune donustur
+
+ADIM 3: Transformer Forward (cacheStart = 0)
+  - Her katman icin:
+    a) RMSNorm
+    b) Attention:
+       - Q, K, V hesapla
+       - RoPE uygula
+       - Attention skorlari hesapla (tum tokenler arasi)
+       - Softmax
+       - Agirlikli toplam
+       - Output projection
+       - YENI: K ve V degerlerini KV_CACHE'E YAZ!
+    c) Residual
+    d) RMSNorm
+    e) FFN
+    f) Residual
+
+ADIM 4: Son Tokenin Logitlerini Al
+  - Sadece SON tokenin cikti hidden state'i onemli
+  - [seqLen, hiddenDim] -> [1, hiddenDim]
+
+ADIM 5: Final RMSNorm + LM Head
+  - Logitleri hesapla: [1, vocabSize]
+  - Sampling ile yeni tokeni sec
+</code></pre>
+
+<h3>6.3 Decode Asamasi Detayli</h3>
+
+<p><strong>Amac:</strong> Her adimda bir token uretmek ve KV Cache'i guncellemek.</p>
+
+<p><strong>Onemli Fark:</strong> Decode'da SADECE 1 token islenir, ancak attention'da ONCEKI TUM tokenler (cache'den) kullanilir!</p>
+
+<h4>Adimlar:</h4>
+<pre><code>ON-KOSUL: KV_Cache zaten dolu (Prefilled)
+          cacheLength = N (cache'te N token var)
+
+ADIM 1: Tek Token Embedding
+  - Son uretilen token: [token_id]
+  - [1, hiddenDim] tensorune donustur
+
+ADIM 2: Transformer Forward (cacheStart = cacheLength)
+  - HER KATMAN ICIN:
+    a) RMSNorm
+    
+    b) Attention (EN ONEMLI KISIM):
+       i) Q hesapla: SADECE yeni token icin
+          Q = [1, hiddenDim]
+       
+       ii) RoPE uygula: YENI konumda (cacheLength)
+       
+       iii) K ve V hesapla: SADECE yeni token icin
+            K_new = [1, kvDim]
+            V_new = [1, kvDim]
+       
+       iv) YENI: K_new ve V_new'i KV_CACHE'E EKLE!
+           cacheLength = N + 1 oldu
+       
+       v) SIMDI attention skorlari hesapla:
+          K_TUM = [K0, K1, ..., K_N, K_new]  (CACHE'DEN al)
+          V_TUM = [V0, V1, ..., V_N, V_new]  (CACHE'DEN al)
+          
+          scores = Q × K_TUM^T / sqrt(d_k)
+                 = [1] × [N+1]^T / ...
+                 = [1, N+1] boyutunda
+          
+       vi) Causal Mask (otomatik olarak saglanmis)
+           Sadece gecmise bakiliyor, cunku K_TUM onceden cache'lenmis
+       
+       vii) Softmax: [1, N+1] -> [1, N+1] olasilik
+       
+       viii) Agirlikli toplam:
+             output = scores × V_TUM
+                    = [1, N+1] × [N+1, kvDim]
+                    = [1, kvDim]
+       
+       ix) Output projection
+    
+    c) Residual, RMSNorm, FFN, Residual (normal)
+
+ADIM 3: Final RMSNorm + LM Head
+  - [1, hiddenDim] -> [1, vocabSize] logits
+  - Sampling ile yeni tokeni sec
+
+ADIM 4: Tekrar!
+  - Yeni token Decode'a geri verilir
+  - EOS (End of Sequence) gorene kadar devam edilir
+</code></pre>
+
+<h3>6.4 Sampling Stratejileri</h3>
+
+<p><strong>Amac:</strong> Logitlerden nasil bir token secilecegine karar vermek.</p>
+
+<h4>1. Greedy Sampling (Actimce Secim)</h4>
+<pre><code>En yuksek olasilikli tokeni sec.
+
+next_token = argmax(logits)
+
+Avantaji: Hizli, deterministik
+Dezavantaji: Tekrarlayan ciktilar, yaraticilik yok
+</code></pre>
+
+<h4>2. Temperature Sampling</h4>
+<pre><code>Logitleri temperature'a bol, sonra softmax, sonra sample.
+
+logits_scaled = logits / temperature
+probs = softmax(logits_scaled)
+next_token = sample(probs)
+
+- temperature = 0: Greedy olur
+- temperature = 1: Normal softmax
+- temperature > 1: Daha fazla rastgelelik (yaraticilik)
+- temperature < 1: Daha kararlı, az rastgelelik
+</code></pre>
+
+<h4>3. Top-K Sampling</h4>
+<pre><code>En yuksek K tanesini sec, arasindan sample.
+
+logits -> sadece en yuksek K tanesini tut (digerlerini -INF yap)
+softmax uygula
+sample
+
+Ornek K=40:
+VocabSize 32000, ama sadece en olasi 40 token icinden secilir.
+</code></pre>
+
+<h4>4. Top-P (Nucleus) Sampling</h4>
+<pre><code>Kumulatif olasiligi P'ye ulasan en kucuk token grubu secilir.
+
+probs = softmax(logits)
+probs_sorted = sirala (buyukten kucuge)
+top_p_tokenler = ilk N tane, ki sum(ilk N) >= P
+
+Sonra bu N token icinden sample.
+
+Ornek P=0.9:
+Toplam olasiligi %90'a ulasan tokenler arasindan sec.
+Esnek, az olasi tokenleri tamamen elmez.
+</code></pre>
+
+<h3>6.5 Inference'de Kullanilan Ozel Forward Metotlari</h3>
+
+<p><strong>MAYA'da Inference Icin Ozel Forward'lar:</strong></p>
+<pre><code>// Egitimde kullanilan (cache yok)
+TransformerBlock::Forward(input, rope, output)
+
+// Inference'de kullanilan (cache var)
+TransformerBlock::ForwardWithCache(
+    input, rope, cache, layer, cacheStart, output)
+
+// Farklar:
+// ForwardWithCache:
+// 1. K ve V hesaplar ve CACHE'E YAZAR
+// 2. Attention'da CACHE'DKI K ve V'leri KULLANIR
+// 3. cacheStart parametresiyle KONUMU dogru ayarlar (RoPE icin)
+</code></pre>
+
+<h3>6.6 Inference Akis Ozeti</h3>
+
+<pre><code>┌─────────────────────────────────────────────────────────────────────────┐
+│  KULLANICI PROMPTU: "Hava durumu nasil?"                                  │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                           │
+│  1. TOKENIZER.Encode("Hava durumu nasil?")                               │
+│     -> [156, 789, 234, 45, 67]  (token ID'leri)                        │
+│                                                                           │
+│  2. INFERENCE_ENGINE.Prefill(tokens)                                     │
+│     -> Token Embedding                                                    │
+│     -> Transformer Forward (tum tokenler)                                 │
+│     -> KV_Cache DOLDURULUR                                                │
+│     -> Logits from last token                                             │
+│     -> Sampling: next_token = "Bugun"                                    │
+│                                                                           │
+│  3. DECODE DONGUSU (max_new_tokens kadar veya EOS gorene kadar)          │
+│                                                                           │
+│     ADIM 1:                                                                │
+│       INFERENCE_ENGINE.Decode("Bugun")                                   │
+│       -> Tek token embedding                                              │
+│       -> ForwardWithCache (cacheStart = cacheLength)                     │
+│       -> K_new, V_new hesapla -> CACHE'E EKLE                            │
+│       -> Attention: CACHE'DKI tum K,V + yeni K,V                         │
+│       -> Logits -> Sampling: next_token = "havalari"                    │
+│                                                                           │
+│     ADIM 2:                                                                │
+│       INFERENCE_ENGINE.Decode("havalari")                                │
+│       -> ... Benzer islemler ...                                          │
+│       -> next_token = "guzel"                                             │
+│                                                                           │
+│     ADIM 3:                                                                │
+│       INFERENCE_ENGINE.Decode("guzel")                                   │
+│       -> ...                                                              │
+│       -> next_token = EOS (Bitis tokeni)                                  │
+│                                                                           │
+│  4. DONGU SONU                                                             │
+│                                                                           │
+│  5. TOKENIZER.Decode([Bugun, havalari, guzel])                           │
+│     -> "Bugun havalari guzel"                                             │
+│                                                                           │
+│  6. KULLANICIYA GOSTER                                                    │
+│                                                                           │
+└─────────────────────────────────────────────────────────────────────────┘
+</code></pre>
+
+<h3>6.7 Egitim vs Inference Karsilastirmasi</h3>
+
+<table>
+<tr><th>Ozellik</th><th>Egitim</th><th>Inference</th></tr>
+<tr><td>Amac</td><td>Modeli ogretmek</td><td>Model kullanmak</td></tr>
+<tr><td>Forward</td><td>Var</td><td>Var</td></tr>
+<tr><td>Backward</td><td>Var (gradient)</td><td>YOK</td></tr>
+<tr><td>Optimizer</td><td>Var</td><td>YOK</td></tr>
+<tr><td>KV Cache</td><td>YOK</td><td>VAR (cok onemli)</td></tr>
+<tr><td>Batch</td><td>Buyuk (64, 128...)</td><td>Kucuk veya tek</td></tr>
+<tr><td>Bellek</td><td>Cok fazla (gradientler, momentler)</td><td>Az (sadece model + cache)</td></tr>
+<tr><td>Hedef</td><td>Azaltmak: loss</td><td>Uretmek: yeni tokenler</td></tr>
+</table>
 
 <h2>7. AGENT MODE</h2>
 <p>Agent Mode, modelin dis araclari (tools) kullanabilmesini saglar. ReAct pattern uygulanir.</p>
