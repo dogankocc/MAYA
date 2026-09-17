@@ -1,0 +1,1391 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <title>MAYA LLM Dokumani</title>
+    <style>
+        body { font-family: Segoe UI, sans-serif; max-width: 1200px; margin: 0 auto; padding: 20px; }
+        h1 { color: #2c3e50; border-bottom: 3px solid #667eea; padding-bottom: 10px; }
+        h2 { color: #34495e; margin-top: 30px; border-left: 4px solid #667eea; padding-left: 12px; }
+        pre { background: #1e1e1e; color: #d4d4d4; padding: 15px; border-radius: 6px; overflow-x: auto; }
+        .folder { background: #f8f9fa; padding: 15px; border-radius: 6px; font-family: Consolas, monospace; }
+        table { width: 100%; border-collapse: collapse; margin: 15px 0; }
+        th { background: #667eea; color: white; padding: 10px; }
+        td { padding: 10px; border-bottom: 1px solid #ddd; }
+    </style>
+</head>
+<body>
+<h1>MAYA LLM - Egitim ve Cikarim Suresi Dokumani</h1>
+
+<h2>1. PROJE GENEL BAKISI</h2>
+<p>MAYA LLM, C++ ile sifirdan yazilmis modern bir LLM uygulamasi. LLaMA tarzi mimari kullanir.</p>
+
+<h3>Klasor Yapisi</h3>
+<div class="folder">
+MAYA/<br>
+├── llm/                          # Ana LLM kutuphanesi<br>
+│   ├── include/llm/              # Header dosyalari<br>
+│   │   ├── core/                  # Config, Status, Types, Logger<br>
+│   │   ├── tensor/                # Tensor, Shape, MatMul operasyonlari<br>
+│   │   ├── tokenizer/             # BPE Tokenizer, Vocabulary<br>
+│   │   ├── model/                 # Transformer, Attention, FFN, Linear<br>
+│   │   ├── training/              # Trainer, AdamW, Loss, Autograd<br>
+│   │   ├── quantization/          # INT8 Quantization<br>
+│   │   ├── inference/             # Inference Engine, KV Cache, Sampling<br>
+│   │   ├── agent/                 # Agent Backend, Tool, ReAct Pattern<br>
+│   │   └── server/                # HTTP Sunucu, Hybrid Backend<br>
+│   └── src/                       # C++ kaynak dosyalari<br>
+├── tokenizer_data/                # Tokenizer verileri (merges.txt)<br>
+├── tests/                         # Unit testler (18 dosya)<br>
+├── scripts/                       # Python yardimci scriptleri<br>
+├── chat_app/                      # Flutter chat uygulamasi<br>
+├── chat_rn/                       # React Native chat uygulamasi<br>
+└── data/corpus/                   # Egitim corpus verileri<br>
+</div>
+
+<h3>Ana Bilesenler</h3>
+<table>
+<tr><th>Bilesen</th><th>Özellikler</th></tr>
+<tr><td>Mimari</td><td>LLaMA tarzi: RMSNorm, SwiGLU FFN, RoPE, MHA</td></tr>
+<tr><td>Tokenizer</td><td>BPE (Byte-Pair Encoding)</td></tr>
+<tr><td>Training</td><td>AdamW, CrossEntropy, Autograd backward</td></tr>
+<tr><td>Quantization</td><td>INT8 symmetric quantization</td></tr>
+<tr><td>Inference</td><td>Single, Batch, Continuous Batching, KV Cache</td></tr>
+<tr><td>Sampling</td><td>Greedy, Temperature, Top-K, Top-P</td></tr>
+<tr><td>Agent</td><td>ReAct-style, Tool kullanimi</td></tr>
+<tr><td>Server</td><td>Local + OpenAI Hybrid, HTTP API</td></tr>
+</table>
+
+<h2>2. TOKENIZER (BPE)</h2>
+<p>Byte-Pair Encoding (BPE), veri sikistirma algoritmasi olup NLP'de tokenizasyon icin kullanilir. En sik gorulen byte ciflerini yeni tokenlerle degistirir.</p>
+
+<h3>Ozel Tokenler</h3>
+<table>
+<tr><th>Token</th><th>ID</th><th>Aciklama</th></tr>
+<tr><td>PAD</td><td>0</td><td>Padding tokeni</td></tr>
+<tr><td>UNK</td><td>1</td><td>Bilinmeyen token</td></tr>
+<tr><td>BOS</td><td>2</td><td>Baslangic tokeni</td></tr>
+<tr><td>EOS</td><td>3</td><td>Bitis tokeni</td></tr>
+</table>
+
+<h3>Vocabulary Yapisi</h3>
+<pre><code>// llm/include/llm/tokenizer/vocabulary.hpp
+class Vocabulary {
+public:
+  TokenId AddToken(const std::string& token);
+  bool Contains(const std::string& token) const;
+  TokenId GetId(const std::string& token) const;
+  const std::string& GetToken(TokenId id) const;
+  std::size_t Size() const;
+  
+  Status Save(const std::string& path) const;
+  static Result&lt;Vocabulary&gt; Load(const std::string& path);
+
+private:
+  std::vector&lt;std::string&gt; idToToken_;
+  std::unordered_map&lt;std::string, TokenId&gt; tokenToId_;
+};
+</code></pre>
+
+<h3>BPE Tokenizer - Egitim (Train)</h3>
+<pre><code>// llm/src/tokenizer/bpe_tokenizer.cpp
+Status BpeTokenizer::Train(const std::string& corpus, std::size_t targetVocabSize) {
+  // 1. Corpus'u kelimelere ayir
+  std::vector&lt;Word&gt; words = SplitCorpusIntoWords(corpus);
+  
+  // 2. Baslangic sembollerini vocab'a ekle
+  CollectSymbols(words, vocabulary_);
+
+  // 3. Hedef vocab boyutuna ulasana kadar merge yap
+  while (vocabulary_.Size() < targetVocabSize) {
+    // En sik gorulen cifti bul
+    const auto frequencies = CountPairFrequencies(words);
+    const auto best = std::max_element(frequencies.begin(), frequencies.end(),
+        [](const auto& lhs, const auto& rhs) { return lhs.second < rhs.second; });
+
+    // Merge islemi
+    const std::string left = ...;
+    const std::string right = ...;
+    const std::string merged = left + right;
+
+    // Kelimelerde merge uygula
+    for (Word& word : words) {
+      MergePairInWord(word, left, right, merged);
+    }
+
+    vocabulary_.AddToken(merged);
+    merges_.push_back({left, right});
+    mergeRank_[MergeKey(left, right)] = merges_.size() - 1;
+  }
+  return Status::Ok();
+}
+</code></pre>
+
+<h3>Encoding Islemi</h3>
+<pre><code>std::vector&lt;TokenId&gt; BpeTokenizer::Encode(const std::string& text) const {
+  std::vector&lt;TokenId&gt; ids;
+  std::istringstream stream(text);
+  std::string word;
+
+  while (stream >> word) {
+    std::vector&lt;std::string&gt; symbols;
+    symbols.push_back(kWordStartToken);  // _ karakteri
+    
+    // Karakter karakter ayir
+    for (const char ch : word) {
+      symbols.emplace_back(1, ch);
+    }
+
+    // BPE kurallarini uygula
+    const std::vector&lt;std::string&gt; tokens = ApplyBpe(symbols);
+    
+    // Token'leri ID'ye cevir
+    for (const std::string& token : tokens) {
+      ids.push_back(vocabulary_.GetId(token));
+    }
+  }
+  return ids;
+}
+</code></pre>
+
+<h3>Decoding Islemi</h3>
+<pre><code>std::string BpeTokenizer::Decode(const std::vector&lt;TokenId&gt;& ids) const {
+  std::string text;
+  for (const TokenId id : ids) {
+    // Ozel tokenleri atla
+    if (id == kPadTokenId || id == kBosTokenId || id == kEosTokenId) {
+      continue;
+    }
+
+    const std::string& token = vocabulary_.GetToken(id);
+    
+    // WordStart (_) ise bosluk ekle
+    if (token == kWordStartToken) {
+      if (!text.empty()) text.push_back(' ');
+      continue;
+    }
+    text += token;
+  }
+  return text;
+}
+</code></pre>
+
+<h3>vocab.txt ve merges.txt Iliskisi</h3>
+<table>
+<tr><th>Dosya</th><th>Aciklama</th><th>Format</th></tr>
+<tr><td>vocab.txt</td><td>Token -> ID eslesmesi</td><td>Satir basina token (satir numarasi = ID)</td></tr>
+<tr><td>merges.txt</td><td>BPE merge kurallari</td><td>"left TAB right" (oncelik sirasiyla)</td></tr>
+</table>
+
+<h2>3. TRANSFORMER MIMARISI</h2>
+<p>MAYA LLM, LLaMA tarzi Transformer mimarisi kullanir. Temel ozellikler: RMSNorm, Pre-LN, SwiGLU FFN, RoPE, Multi-Head Attention.</p>
+
+<h3>Model Config</h3>
+<pre><code>// llm/include/llm/core/config.hpp
+struct ModelConfig {
+  std::size_t vocabSize = 32000;      // Vocabulary boyutu
+  std::size_t hiddenDim = 512;          // Gizli katman boyutu
+  std::size_t numLayers = 6;            // Transformer katman sayisi
+  std::size_t numHeads = 8;             // Attention kafa sayisi
+  std::size_t numKvHeads = 8;           // KV kafa sayisi (GQA icin)
+  std::size_t intermediateDim = 2048;   // FFN ara katman
+  std::size_t maxSeqLen = 2048;         // Maksimum sira uzunlugu
+  float ropeTheta = 10000.0f;           // RoPE theta
+  float normEps = 1e-5f;                 // RMSNorm epsilon
+};
+</code></pre>
+
+<h3>3.1 Linear Layer Forward</h3>
+<p>Lineer katman: output = input * W^T (veya quantize edilmis W)</p>
+<pre><code>// llm/src/model/linear.cpp
+Status Linear::Forward(const Tensor& input, Tensor& output) const {
+  // input: [seq_len, input_dim]
+  // output: [seq_len, output_dim]
+  
+  if (useQuantizedWeight_) {
+    // Quantize edilmis agirlik ile matmul
+    return tensor::MatMulQuantized(input, quantizedWeight_, output);
+  }
+
+  // Normal FP32 matmul: W^T ile carp
+  const Tensor weightTransposed = weight_.Transpose2D();
+  const Status matmulStatus = tensor::MatMul(input, weightTransposed, output);
+  
+  // Bias ekle (varsa)
+  if (useBias_) {
+    const Dimension seqLen = input.GetShape()[0];
+    for (Dimension row = 0; row < seqLen; ++row) {
+      for (Dimension col = 0; col < outputDim_; ++col) {
+        output.At({row, col}) += bias_[col];
+      }
+    }
+  }
+  return Status::Ok();
+}
+</code></pre>
+
+<h3>3.2 Multi-Head Attention Mekanizmasi</h3>
+<p>Multi-Head Attention (MHA), birden fazla attention kafasi kullanarak baglanti kurar.</p>
+
+<h4>Attention Formulu</h4>
+<pre><code>Attention(Q, K, V) = softmax(Q*K^T / sqrt(d_k)) * V
+
+Q: Query (sorgu) - Ben ne ariyorum?
+K: Key (anahtar) - Ben ne sunuyorum?
+V: Value (deger) - Ben ne veriyorum?
+
+Multi-Head: Q, K, V'yi birden fazla kafa boyunca bol,
+her kafa icin ayri attention hesapla, sonuclari birlestir.
+</code></pre>
+
+<h4>C++ Implementasyonu</h4>
+<pre><code>// llm/src/model/attention.cpp
+Status MultiHeadAttention::Forward(const Tensor& input, const RopeCache& rope, Tensor& output) const {
+  const Dimension seqLen = input.GetShape()[0];
+  const Dimension numHeads = config_.numHeads;
+  const Dimension headDim = config_.hiddenDim / numHeads;
+  const Scalar scale = 1.0f / std::sqrt(static_cast&lt;Scalar&gt;(headDim));
+
+  // 1. Q, K, V projection'larini uygula
+  Tensor queries, keys, values;
+  query_.Forward(input, queries);   // Q = input * W_q
+  key_.Forward(input, keys);        // K = input * W_k
+  value_.Forward(input, values);    // V = input * W_v
+
+  // 2. Rotary Position Embedding (RoPE) uygula
+  ApplyRope(queries, rope, numHeads, headDim);
+  ApplyRope(keys, rope, numKvHeads, headDim);
+
+  // 3. Her kafa icin attention hesapla
+  Tensor merged = Tensor::Zeros(Shape{seqLen, config_.hiddenDim});
+  
+  for (Dimension queryPos = 0; queryPos < seqLen; ++queryPos) {
+    for (Dimension head = 0; head < numHeads; ++head) {
+      // a. Attention skorlarini hesapla: Q*K^T / sqrt(d_k)
+      std::vector&lt;Scalar&gt; scores(seqLen, -INFINITY);
+      for (Dimension keyPos = 0; keyPos <= queryPos; ++keyPos) {  // Causal mask
+        Scalar dot = 0.0f;
+        for (Dimension dim = 0; dim < headDim; ++dim) {
+          Scalar q = queries.At({queryPos, head * headDim + dim});
+          Scalar k = keys.At({keyPos, kvHead * headDim + dim});
+          dot += q * k;
+        }
+        scores[keyPos] = dot * scale;
+      }
+
+      // b. Softmax uygula (numerik kararlilik icin max cikar)
+      Scalar maxScore = *max_element(scores.begin(), scores.begin() + queryPos + 1);
+      Scalar sumExp = 0.0f;
+      for (Dimension keyPos = 0; keyPos <= queryPos; ++keyPos) {
+        scores[keyPos] = std::exp(scores[keyPos] - maxScore);
+        sumExp += scores[keyPos];
+      }
+
+      // c. Agirlikli toplam: sum(attention_weight * V)
+      for (Dimension dim = 0; dim < headDim; ++dim) {
+        Scalar weighted = 0.0f;
+        for (Dimension keyPos = 0; keyPos <= queryPos; ++keyPos) {
+          Scalar attnWeight = scores[keyPos] / sumExp;
+          Scalar v = values.At({keyPos, kvHead * headDim + dim});
+          weighted += attnWeight * v;
+        }
+        merged.At({queryPos, head * headDim + dim}) = weighted;
+      }
+    }
+  }
+
+  // 4. Output projection: merged * W_o
+  return output_.Forward(merged, output);
+}
+</code></pre>
+
+<h3>3.3 SwiGLU FFN</h3>
+<p>SwiGLU (Swish-Gated Linear Unit), LLaMA'da kullanilan modern FFN varyantidir.</p>
+
+<h4>Standart FFN vs SwiGLU</h4>
+<table>
+<tr><th>Tip</th><th>Formul</th><th>Parametre</th></tr>
+<tr><td>Standart FFN</td><td>FFN(x) = max(0, x*W1 + b1) * W2 + b2</td><td>2 Linear</td></tr>
+<tr><td>SwiGLU FFN</td><td>FFN(x) = (SiLU(x*Wg) * (x*Wu)) * Wd</td><td>3 Linear (gate, up, down)</td></tr>
+</table>
+
+<h4>SiLU (Swish) Aktivasyonu</h4>
+<pre><code>SiLU(x) = x * sigmoid(x)
+sigmoid(x) = 1 / (1 + exp(-x))
+
+SiLU turevi: sigmoid(x) * (1 + x * (1 - sigmoid(x)))
+</code></pre>
+
+<h4>C++ Implementasyonu</h4>
+<pre><code>// llm/src/model/ffn.cpp
+Status SwiGluFfn::Forward(const Tensor& input, Tensor& output) const {
+  Tensor gate, up, hidden;
+
+  // 1. Gate ve Up projection'lari
+  gate_.Forward(input, gate);   // gate = x * W_g
+  up_.Forward(input, up);       // up = x * W_u
+
+  // 2. SiLU(gate) * up uygula
+  tensor::Silu(gate);           // gate = SiLU(gate)
+  tensor::Mul(gate, up, hidden);  // hidden = gate * up
+
+  // 3. Down projection
+  return down_.Forward(hidden, output);  // output = hidden * W_d
+}
+
+// llm/src/tensor/ops.cpp - SiLU implementasyonu
+void Silu(Tensor& tensor) {
+  for (Index i = 0; i < static_cast&lt;Index&gt;(tensor.Numel()); ++i) {
+    const Scalar x = tensor[i];
+    const Scalar sigmoid = 1.0f / (1.0f + std::exp(-x));
+    tensor[i] = x * sigmoid;
+  }
+}
+</code></pre>
+
+<h3>3.4 Transformer Block (Pre-LN, Residual)</h3>
+<p>Her Transformer katmani iki ana kisimdan olusur: Attention + FFN. Pre-LN ve residual baglantilar kullanilir.</p>
+
+<h4>Pre-LN vs Post-LN</h4>
+<pre><code>Pre-LN (LLaMA, MAYA):
+x1 = x + Attention(RMSNorm(x))
+x2 = x1 + FFN(RMSNorm(x1))
+
+Post-LN (Orijinal Transformer):
+x1 = RMSNorm(x + Attention(x))
+x2 = RMSNorm(x1 + FFN(x1))
+
+Pre-LN avantaji: Egitim daha stabil, gradientler daha iyi akar.
+</code></pre>
+
+<h4>RMSNorm Formulu</h4>
+<pre><code>RMS = sqrt(mean(x^2))
+RMSNorm(x, weight) = weight * (x / (RMS + eps))
+
+RMS, x karelerinin ortalamasının kareköküdür.
+LayerNorm'dan farki: mean cikarmaz, sadece olcekleme yapar.
+</code></pre>
+
+<h4>C++ Implementasyonu</h4>
+<pre><code>// llm/src/model/transformer_block.cpp
+Status TransformerBlock::Forward(const Tensor& input, const RopeCache& rope, Tensor& output) const {
+  Tensor attnNormed, attnOutput, residual;
+  Tensor ffnNormed, ffnOutput;
+
+  // === Attention Sub-Layer ===
+  // 1. RMSNorm uygula (Pre-LN)
+  RmsNorm(input, attnNormWeight_, config_.normEps, attnNormed);
+  
+  // 2. Multi-Head Attention
+  attention_.Forward(attnNormed, rope, attnOutput);
+  
+  // 3. Residual baglanti: x + Attention(RMSNorm(x))
+  tensor::Add(input, attnOutput, residual);
+
+  // === FFN Sub-Layer ===
+  // 4. RMSNorm uygula
+  RmsNorm(residual, ffnNormWeight_, config_.normEps, ffnNormed);
+  
+  // 5. SwiGLU FFN
+  ffn_.Forward(ffnNormed, ffnOutput);
+  
+  // 6. Residual baglanti
+  return tensor::Add(residual, ffnOutput, output);
+}
+
+// llm/src/model/rms_norm.hpp
+Status RmsNorm(const Tensor& input, const Tensor& weight, const Scalar eps, Tensor& output) {
+  const Dimension seqLen = input.GetShape()[0];
+  const Dimension hiddenDim = input.GetShape()[1];
+
+  output = Tensor::Zeros(input.GetShape());
+
+  for (Dimension row = 0; row < seqLen; ++row) {
+    // 1. Karelerin toplamini hesapla
+    Scalar sumSquares = 0.0f;
+    for (Dimension dim = 0; dim < hiddenDim; ++dim) {
+      const Scalar value = input.At({row, dim});
+      sumSquares += value * value;
+    }
+
+    // 2. RMS hesapla
+    const Scalar rms = std::sqrt(sumSquares / static_cast&lt;Scalar&gt;(hiddenDim) + eps);
+    const Scalar invRms = 1.0f / rms;
+
+    // 3. Normalize et ve olcekle
+    for (Dimension dim = 0; dim < hiddenDim; ++dim) {
+      const Scalar x = input.At({row, dim});
+      const Scalar w = weight[dim];
+      output.At({row, dim}) = w * x * invRms;
+    }
+  }
+  return Status::Ok();
+}
+</code></pre>
+
+<h3>3.5 Transformer Model (Genel Bakis)</h3>
+<pre><code>// llm/src/model/transformer.cpp
+Status TransformerModel::Forward(const std::vector&lt;TokenId&gt;& tokens, Tensor& logits) const {
+  const Dimension seqLen = tokens.size();
+
+  // 1. Token Embedding: token -> hidden state
+  Tensor hidden = Tensor::Zeros(Shape{seqLen, config_.hiddenDim});
+  for (Dimension pos = 0; pos < seqLen; ++pos) {
+    const TokenId token = tokens[pos];
+    for (Dimension dim = 0; dim < config_.hiddenDim; ++dim) {
+      hidden.At({pos, dim}) = tokenEmbedding_.At({token, dim});
+    }
+  }
+
+  // 2. Transformer katmanlarini uygula
+  Tensor current = hidden;
+  for (const TransformerBlock& layer : layers_) {
+    Tensor next = Tensor::Zeros(Shape{seqLen, config_.hiddenDim});
+    layer.Forward(current, rope_, next);
+    current = next;
+  }
+
+  // 3. Final RMSNorm
+  Tensor normalized;
+  RmsNorm(current, finalNormWeight_, config_.normEps, normalized);
+
+  // 4. LM Head: logits = normalized * W_lm
+  return LmHeadForward(normalized, logits);
+}
+</code></pre>
+
+<h2>4. EGITIM SURECI (Training)</h2>
+<p>Egitim sureci: Forward Pass -> Loss Hesaplama -> Backward Pass -> Optimizer Step</p>
+
+<h3>4.1 Forward Pass Detaylari</h3>
+<p>Forward Pass, girdi tokenlerinin modele verilerek logitlerin hesaplanmasidir.</p>
+<pre><code>Akis:
+tokens -> token_embedding -> [N transformer katmani] -> RMSNorm -> LM_Head -> logits
+
+logits: [seq_len, vocab_size] - Her token icin vocab olasiliklari
+</code></pre>
+
+<h3>4.2 CrossEntropy Loss Hesaplama</h3>
+<p>CrossEntropy, siniflandirma problemlerinde kullanilan standart loss fonksiyonudur.</p>
+
+<h4>Formul</h4>
+<pre><code>Softmax: p_i = exp(logit_i - max_logit) / sum(exp(logit_j - max_logit))
+
+CrossEntropy: loss = -sum(target_one_hot * log(p)) / N
+
+MAYA'da:
+- logits'ten softmax ile olasilik hesapla
+- target token'in olasiligini bul
+- -log(prob) ile loss hesapla
+- Gradient: p_i - target_i (hedef sinif icin 1, digerleri icin 0)
+</code></pre>
+
+<h4>C++ Implementasyonu</h4>
+<pre><code>// llm/src/training/loss.cpp
+float CrossEntropyLoss(const Tensor& logits, const std::vector&lt;TokenId&gt;& targetTokens, Tensor& gradLogits) {
+  const Dimension seqLen = logits.GetShape()[0];
+  const Dimension vocabSize = logits.GetShape()[1];
+
+  gradLogits = Tensor::Zeros(logits.GetShape());
+  float totalLoss = 0.0f;
+
+  for (Dimension row = 0; row < seqLen; ++row) {
+    const TokenId target = targetTokens[row];
+
+    // 1. Numerik kararlilik icin max_logit cikar
+    Scalar maxLogit = logits.At({row, 0});
+    for (Dimension vocab = 1; vocab < vocabSize; ++vocab) {
+      maxLogit = std::max(maxLogit, logits.At({row, vocab}));
+    }
+
+    // 2. Softmax olasiliklarini hesapla
+    Scalar sumExp = 0.0f;
+    for (Dimension vocab = 0; vocab < vocabSize; ++vocab) {
+      const Scalar probability =
+          std::exp(logits.At({row, vocab}) - maxLogit);
+      gradLogits.At({row, vocab}) = probability;  // Ara deger
+      sumExp += probability;
+    }
+
+    // 3. Normalize et
+    for (Dimension vocab = 0; vocab < vocabSize; ++vocab) {
+      gradLogits.At({row, vocab}) /= sumExp;  // Artik p_i
+    }
+
+    // 4. Loss hesapla: -log(p_target)
+    const Scalar targetProbability = gradLogits.At({row, target});
+    totalLoss -= std::log(std::max(targetProbability, 1e-12f));
+
+    // 5. Gradient hesapla: d_loss/d_logit = p_i - target_i
+    // target_i: hedef sinif icin 1, digerleri icin 0
+    gradLogits.At({row, target}) -= 1.0f;  // p_target - 1
+    
+    // Ortalama al (batch/seq normalization)
+    for (Dimension vocab = 0; vocab < vocabSize; ++vocab) {
+      gradLogits.At({row, vocab}) /= static_cast&lt;Scalar&gt;(seqLen);
+    }
+  }
+
+  return totalLoss / static_cast&lt;Scalar&gt;(seqLen);
+}
+</code></pre>
+
+<h3>4.3 Backward Pass (Gradient Hesaplama, Chain Rule)</h3>
+<p>Backward Pass, kayiptan (loss) geriye dogru gradient hesaplamadir. Zincir kurali (Chain Rule) kullanilir.</p>
+
+<h4>Zincir Kurali (Chain Rule)</h4>
+<pre><code>Eger y = f(g(x)) ise:
+dy/dx = dy/dg * dg/dx
+
+Ornek: L = CrossEntropy(Softmax(Linear(Transformer(x))))
+
+dL/dW_lm_head = dL/dLogits * dLogits/dW_lm_head
+dL/dW_attn = ... ve boyle devam eder
+</code></pre>
+
+<h4>MatMul Backward</h4>
+<pre><code>// Eger output = a * b (matmul) ise
+// d_output/d_a = b^T
+// d_output/d_b = a^T
+
+// llm/src/training/autograd.cpp
+Status MatMulBackward(const Tensor& a, const Tensor& b, const Tensor& gradOutput,
+                      Tensor& gradA, Tensor& gradB) {
+  // gradA = gradOutput * b^T
+  // gradB = a^T * gradOutput
+  
+  const Tensor bTransposed = b.Transpose2D();
+  const Tensor aTransposed = a.Transpose2D();
+
+  // dL/da = dL/dOutput * b^T
+  tensor::MatMul(gradOutput, bTransposed, gradA);
+  
+  // dL/db = a^T * dL/dOutput
+  tensor::MatMul(aTransposed, gradOutput, gradB);
+  
+  return Status::Ok();
+}
+</code></pre>
+
+<h4>Linear Backward</h4>
+<pre><code>// Linear: y = x * W^T
+// dL/dx = dL/dy * W
+// dL/dW = dL/dy^T * x
+
+Status LinearBackward(const Tensor& input, const Tensor& weight, const Tensor& gradOutput,
+                      Tensor& gradInput, Tensor& gradWeight) {
+  const Tensor weightTransposed = weight.Transpose2D();
+  return MatMulBackward(input, weightTransposed, gradOutput, gradInput, gradWeight);
+}
+</code></pre>
+
+<h4>SiLU Backward</h4>
+<pre><code>// SiLU(x) = x * sigmoid(x)
+// dSiLU/dx = sigmoid(x) * (1 + x * (1 - sigmoid(x)))
+
+void SiluBackward(const Tensor& input, const Tensor& output, const Tensor& gradOutput,
+                  Tensor& gradInput) {
+  gradInput = Tensor::Zeros(input.GetShape());
+
+  for (Index i = 0; i < static_cast&lt;Index&gt;(input.Numel()); ++i) {
+    const Scalar x = input[i];
+    const Scalar sigmoid = 1.0f / (1.0f + std::exp(-x));
+    const Scalar derivative = sigmoid * (1.0f + x * (1.0f - sigmoid));
+    gradInput[i] = gradOutput[i] * derivative;
+  }
+}
+</code></pre>
+
+<h3>4.4 AdamW Optimizer Calisma Prensibi</h3>
+<p>AdamW, Adam optimizerinin weight decay duzeltilmis halidir. Modern LLM egitiminde en cok kullanilan optimizerdir.</p>
+
+<h4>Adam Formulleri</h4>
+<pre><code>m_t = beta1 * m_{t-1} + (1 - beta1) * g_t      (Birinci moment - ortalama)
+v_t = beta2 * v_{t-1} + (1 - beta2) * g_t^2    (Ikinci moment - varyans)
+
+m_hat = m_t / (1 - beta1^t)                      (Bias duzeltme)
+v_hat = v_t / (1 - beta2^t)                      (Bias duzeltme)
+
+theta_t = theta_{t-1} - lr * m_hat / (sqrt(v_hat) + eps)
+
+AdamW'da ayrica weight decay:
+theta_t = theta_t - lr * weight_decay * theta_{t-1}
+</code></pre>
+
+<h4>Hiperparametreler</h4>
+<table>
+<tr><th>Parametre</th><th>Tipik Deger</th><th>Aciklama</th></tr>
+<tr><td>learning_rate</td><td>1e-3 veya 3e-4</td><td>Ogrenme orani</td></tr>
+<tr><td>beta1</td><td>0.9</td><td>Birinci moment ustel ortalama</td></tr>
+<tr><td>beta2</td><td>0.999</td><td>Ikinci moment ustel ortalama</td></tr>
+<tr><td>epsilon</td><td>1e-8</td><td>Sifira bolunmeyi onle</td></tr>
+<tr><td>weight_decay</td><td>0.01</td><td>Agirlik ayristirma (L2 regularizasyon)</td></tr>
+</table>
+
+<h4>C++ Implementasyonu</h4>
+<pre><code>// llm/src/training/adamw.cpp
+Status AdamW::Step(ParameterList& parameters) {
+  // Ilk adimda moment tensorlerini baslat
+  if (moment1_.size() != parameters.Size()) {
+    moment1_.clear();
+    moment2_.clear();
+    for (const Parameter& p : parameters.Parameters()) {
+      moment1_.push_back(Tensor::Zeros(p.tensor->GetShape()));
+      moment2_.push_back(Tensor::Zeros(p.tensor->GetShape()));
+    }
+  }
+
+  ++step_;
+  
+  // Bias duzeltme faktörleri
+  const float biasCorrection1 = 1.0f - std::pow(config_.beta1, static_cast&lt;float&gt;(step_));
+  const float biasCorrection2 = 1.0f - std::pow(config_.beta2, static_cast&lt;float&gt;(step_));
+  const float stepSize = config_.learningRate * std::sqrt(biasCorrection2) / biasCorrection1;
+
+  // Her parametre icin guncelleme
+  for (std::size_t index = 0; index < parameters.Size(); ++index) {
+    Parameter& parameter = parameters.Parameters()[index];
+    Tensor& moment1 = moment1_[index];
+    Tensor& moment2 = moment2_[index];
+
+    for (Index element = 0; element < static_cast&lt;Index&gt;(parameter.tensor->Numel()); ++element) {
+      const Scalar gradient = parameter.grad[element];
+
+      // 1. Birinci moment (m_t)
+      moment1[element] = config_.beta1 * moment1[element] + 
+                         (1.0f - config_.beta1) * gradient;
+
+      // 2. Ikinci moment (v_t)
+      moment2[element] = config_.beta2 * moment2[element] + 
+                         (1.0f - config_.beta2) * gradient * gradient;
+
+      // 3. Bias duzeltilmis degerler
+      const Scalar mHat = moment1[element] / biasCorrection1;
+      const Scalar vHat = moment2[element] / biasCorrection2;
+
+      // 4. Parametre guncelleme
+      const Scalar update = stepSize * mHat / (std::sqrt(vHat) + config_.epsilon);
+      (*parameter.tensor)[element] -= update;
+
+      // 5. Weight Decay (ayri uygulanir - AdamW ozelligi)
+      (*parameter.tensor)[element] -= config_.learningRate * config_.weightDecay * 
+                                       (*parameter.tensor)[element];
+    }
+  }
+
+  return Status::Ok();
+}
+</code></pre>
+
+<h3>4.5 Checkpoint Kaydetme ve Yukleme</h3>
+<p>Checkpoint, model agirliklarini ve durumunu dosyaya kaydetmek icin kullanilir.</p>
+
+<h4>Checkpoint Format</h4>
+<pre><code>MAYA checkpoint ikili (binary) format:
+- Header (magic, version, model config)
+- Tensorler (isim + shape + veri)
+
+Magic: "LLMCKPT1" (8 byte)
+</code></pre>
+
+<h4>Kaydedilen Tensorler</h4>
+<table>
+<tr><th>Tensor Adi</th><th>Shape</th><th>Aciklama</th></tr>
+<tr><td>token_embedding</td><td>[vocab, hidden]</td><td>Token embedding</td></tr>
+<tr><td>final_norm_weight</td><td>[hidden]</td><td>Final RMSNorm</td></tr>
+<tr><td>lm_head_weight</td><td>[vocab, hidden]</td><td>LM Head</td></tr>
+<tr><td>layer.N.attn_norm_weight</td><td>[hidden]</td><td>Layer N attention norm</td></tr>
+<tr><td>layer.N.ffn_norm_weight</td><td>[hidden]</td><td>Layer N FFN norm</td></tr>
+<tr><td>layer.N.attn.q_weight</td><td>[hidden, hidden]</td><td>Query projection</td></tr>
+<tr><td>layer.N.attn.k_weight</td><td>[kv_dim, hidden]</td><td>Key projection</td></tr>
+<tr><td>layer.N.attn.v_weight</td><td>[kv_dim, hidden]</td><td>Value projection</td></tr>
+<tr><td>layer.N.attn.o_weight</td><td>[hidden, hidden]</td><td>Output projection</td></tr>
+<tr><td>layer.N.ffn.gate_weight</td><td>[intermediate, hidden]</td><td>FFN gate</td></tr>
+<tr><td>layer.N.ffn.up_weight</td><td>[intermediate, hidden]</td><td>FFN up</td></tr>
+<tr><td>layer.N.ffn.down_weight</td><td>[hidden, intermediate]</td><td>FFN down</td></tr>
+</table>
+
+<h4>C++ Implementasyonu (Kaydetme)</h4>
+<pre><code>// llm/src/model/checkpoint/checkpoint.cpp
+Status Checkpoint::Save(const TransformerModel& model, const std::string& path) {
+  // Header hazirla
+  CheckpointHeader header{};
+  std::memcpy(header.magic, kCheckpointMagic, sizeof(header.magic));
+  header.version = kCheckpointVersion;
+  header.vocabSize = config.vocabSize;
+  header.hiddenDim = config.hiddenDim;
+  header.numLayers = config.numLayers;
+  header.numHeads = config.numHeads;
+  header.numKvHeads = config.numKvHeads;
+  header.intermediateDim = config.intermediateDim;
+  header.maxSeqLen = config.maxSeqLen;
+  header.ropeTheta = config.ropeTheta;
+  header.normEps = config.normEps;
+  header.numTensors = ...;  // Tensor sayisi
+
+  // Dosyaya yaz
+  std::ofstream output(path, std::ios::binary);
+  WriteBytes(output, &header, sizeof(header));
+  
+  // Tensorleri yaz
+  WriteTensor(output, "token_embedding", model.TokenEmbedding());
+  WriteTensor(output, "final_norm_weight", model.FinalNormWeight());
+  WriteTensor(output, "lm_head_weight", model.LmHeadWeight());
+  
+  // Her katman icin
+  for (std::size_t layer = 0; layer < model.NumLayers(); ++layer) {
+    const auto& block = model.Layer(layer);
+    const std::string prefix = "layer." + std::to_string(layer);
+    
+    WriteTensor(output, prefix + ".attn_norm_weight", block.AttnNormWeight());
+    WriteTensor(output, prefix + ".ffn_norm_weight", block.FfnNormWeight());
+    WriteTensor(output, prefix + ".attn.q_weight", block.AttentionModule().QueryProjection().Weight());
+    WriteTensor(output, prefix + ".attn.k_weight", block.AttentionModule().KeyProjection().Weight());
+    WriteTensor(output, prefix + ".attn.v_weight", block.AttentionModule().ValueProjection().Weight());
+    WriteTensor(output, prefix + ".attn.o_weight", block.AttentionModule().OutputProjection().Weight());
+    WriteTensor(output, prefix + ".ffn.gate_weight", block.FfnModule().GateProjection().Weight());
+    WriteTensor(output, prefix + ".ffn.up_weight", block.FfnModule().UpProjection().Weight());
+    WriteTensor(output, prefix + ".ffn.down_weight", block.FfnModule().DownProjection().Weight());
+  }
+
+  return Status::Ok();
+}
+</code></pre>
+
+<h2>5. QUANTIZATION (INT8 SIKISTIRMA)</h2>
+<p>Quantization, model agirliklarini daha az bitli sayilarla temsil etme teknigidir. Bellek kullanimi azalir, hiz artar.</p>
+
+<h3>5.1 FP32 -> INT8 Donusumu</h3>
+<p>MAYA'da symmetric quantization kullanilir. Sıfır simetrik olarak ölçeklenir.</p>
+
+<h4>Formul</h4>
+<pre><code>FP32 -> INT8:
+scale = max_abs(FP32_degerleri) / 127.0
+INT8_deger = round(FP32_deger / scale)
+clamp: -127 ile +127 arasinda
+
+INT8 -> FP32 (De-quantization):
+FP32_deger = INT8_deger * scale
+</code></pre>
+
+<h4>Neden 127?</h4>
+<pre><code>INT8 (signed) -128 ile +127 arasindadir.
+Simetrik quantization'da -127 ile +127 kullanilir.
+Boylece 0 noktasi tam ortaya gelir.
+</code></pre>
+
+<h4>C++ Implementasyonu</h4>
+<pre><code>// llm/include/llm/quantization/quantize.hpp
+struct QuantizedTensor {
+  Shape shape;
+  float scale = 1.0f;           // Olcekleme faktoru
+  std::vector&lt;std::int8_t&gt; data;  // INT8 veriler
+};
+</code></pre>
+
+<pre><code>// llm/src/quantization/quantize.cpp
+QuantizedTensor QuantizeSymmetric(const Tensor& tensor) {
+  QuantizedTensor quantized;
+  quantized.shape = tensor.GetShape();
+  quantized.data.resize(tensor.Numel());
+
+  // 1. Mutlak degerlerin maksimumunu bul
+  float maxAbs = 0.0f;
+  for (Index i = 0; i < static_cast&lt;Index&gt;(tensor.Numel()); ++i) {
+    maxAbs = std::max(maxAbs, std::fabs(tensor[i]));
+  }
+
+  // Sıfır tensörü ise
+  if (maxAbs < 1e-8f) {
+    quantized.scale = 1.0f;
+    std::fill(quantized.data.begin(), quantized.data.end(), 
+              static_cast&lt;std::int8_t&gt;(0));
+    return quantized;
+  }
+
+  // 2. Scale hesapla
+  quantized.scale = maxAbs / 127.0f;
+
+  // 3. Her elemani INT8'e cevir
+  for (Index i = 0; i < static_cast&lt;Index&gt;(tensor.Numel()); ++i) {
+    const float scaled = tensor[i] / quantized.scale;
+    const auto rounded = static_cast&lt;long&gt;(std::lround(scaled));
+    // Clamp: -127 ile +127 arasinda
+    const auto clamped = std::clamp(rounded, -127L, 127L);
+    quantized.data[static_cast&lt;std::size_t&gt;(i)] = 
+        static_cast&lt;std::int8_t&gt;(clamped);
+  }
+
+  return quantized;
+}
+
+// De-quantization
+Tensor Dequantize(const QuantizedTensor& quantized) {
+  std::vector&lt;Scalar&gt; data(quantized.data.size());
+  for (std::size_t i = 0; i < quantized.data.size(); ++i) {
+    data[i] = static_cast&lt;Scalar&gt;(quantized.data[i]) * quantized.scale;
+  }
+  return Tensor::FromBuffer(quantized.shape, std::move(data));
+}
+</code></pre>
+
+<h3>5.2 Quantize Edilmis Linear Layer</h3>
+<p>Linear layer, quantized agirliklarla direkt matmul yapabilir.</p>
+<pre><code>// llm/src/model/linear.cpp
+Status Linear::Forward(const Tensor& input, Tensor& output) const {
+  if (useQuantizedWeight_) {
+    // Quantized agirlik ile hizli matmul
+    return tensor::MatMulQuantized(input, quantizedWeight_, output);
+  }
+  // Normal FP32 matmul
+  const Tensor weightTransposed = weight_.Transpose2D();
+  return tensor::MatMul(input, weightTransposed, output);
+}
+</code></pre>
+
+<h3>5.3 Avantajlar</h3>
+<table>
+<tr><th>Avantaj</th><th>Aciklama</th></tr>
+<tr><td>Bellek</td><td>75% azalma (FP32: 4 byte -> INT8: 1 byte)</td></tr>
+<tr><td>Hiz</td><td>Daha fazla islemci paralelligi, daha az bellek erisimi</td></tr>
+<tr><td>MODEL BOYUTU</td><td>7.5B parametre -> ~7.5 GB FP32, ~1.9 GB INT8</td></tr>
+</table>
+
+<h2>6. CIKARIM SURECI (Inference)</h2>
+<p>Cıkarım, eğitilmiş modelin yeni tokenler üretmesidir. İki ana aşama: Prefill ve Decode.</p>
+
+<h3>6.1 Prefill Aşaması</h3>
+<p>Prefill, kullanıcının girdi (prompt) tokenlerinin modelden geçirilmesidir.</p>
+
+<h4>Özellikleri</h4>
+<pre><code>- Tüm prompt tokenleri aynı anda işlenir (paralel)
+- KV Cache doldurulur
+- Genellikle daha yavaş (çok token)
+- Prompt uzunluğu kadar compute gerekir
+</code></pre>
+
+<h4>C++ Implementasyonu</h4>
+<pre><code>// llm/src/inference/inference_engine.cpp
+Status InferenceEngine::Prefill(const std::vector&lt;TokenId&gt;& tokens, Tensor& logits) {
+  Reset();  // Cache'i sıfırla
+
+  // 1. Token embedding
+  Tensor hidden;
+  EmbedTokens(tokens, hidden);
+
+  // 2. Forward ile tüm tokenleri isle (cacheStart = 0)
+  Tensor output;
+  ForwardHidden(hidden, 0, output);
+
+  // 3. Son tokenin logitlerini al
+  Tensor lastRow = Tensor::Zeros(Shape{1, config_.hiddenDim});
+  const Dimension lastIndex = tokens.size() - 1;
+  for (Dimension dim = 0; dim < config_.hiddenDim; ++dim) {
+    lastRow.At({0, dim}) = output.At({lastIndex, dim});
+  }
+
+  return LogitsFromRow(lastRow, logits);
+}
+</code></pre>
+
+<h3>6.2 Decode Aşaması</h3>
+<p>Decode, her adımda bir token üretme ve KV Cache'i güncelleme işlemidir.</p>
+
+<h4>Özellikleri</h4>
+<pre><code>- Her adımda SADECE 1 token işlenir
+- KV Cache kullanılır (Önceden hesaplanan K,V değerleri)
+- Çok daha hızlı (her adım az compute)
+- Yeni K,V değerleri cache'e eklenir
+</code></pre>
+
+<h4>C++ Implementasyonu</h4>
+<pre><code>Status InferenceEngine::Decode(TokenId token, Tensor& logits) {
+  // 1. Tek token embedding
+  Tensor hidden;
+  EmbedToken(token, hidden);
+
+  // 2. Cache uzunlugundan basla
+  const std::size_t cacheStart = cache_.Length();
+  
+  // 3. Forward (sadece yeni token, cache kullan)
+  Tensor output;
+  ForwardHidden(hidden, cacheStart, output);
+
+  // 4. Logitleri don
+  return LogitsFromRow(output, logits);
+}
+</code></pre>
+
+<h3>6.3 KV Cache Mekanizması</h3>
+<p>KV Cache, her katmandaki Key ve Value tensörlerini kaydederek tekrarlanan hesaplamaları önler.</p>
+
+<h4>Neden KV Cache?</h4>
+<pre><code>KV Cache olmadan:
+Adım 1: [t1, t2, t3] -> tüm attention hesapla
+Adım 2: [t1, t2, t3, t4] -> TEKRADAN tüm attention hesapla
+
+KV Cache ile:
+Adım 1: [t1, t2, t3] -> K1, V1, K2, V2, K3, V3 CACHE'e kaydet
+Adım 2: [t4] -> sadece K4, V4 hesapla, CACHE'den K1-3, V1-3 al
+</code></pre>
+
+<h4>C++ Implementasyonu</h4>
+<pre><code>// llm/include/llm/inference/kv_cache.hpp
+class KvCache {
+public:
+  explicit KvCache(const ModelConfig& config);
+  
+  // Yazma: Yeni K,V degerlerini ekle
+  Status Write(std::size_t layer, std::size_t position, 
+               const Tensor& keys, const Tensor& values);
+  
+  // Okuma: Kaydedilmis K,V degerlerini al
+  const Tensor& Keys(std::size_t layer) const;
+  const Tensor& Values(std::size_t layer) const;
+  
+  std::size_t Length() const { return length_; }
+
+private:
+  ModelConfig config_;
+  Dimension kvDim_;
+  std::size_t length_ = 0;
+  std::vector&lt;Tensor&gt; keys_;    // Her katman icin [max_seq, kv_dim]
+  std::vector&lt;Tensor&gt; values_;  // Her katman icin [max_seq, kv_dim]
+};
+</code></pre>
+
+<pre><code>// llm/src/inference/kv_cache.cpp
+KvCache::KvCache(const ModelConfig& config) : config_(config) {
+  const Dimension headDim = config.hiddenDim / config.numHeads;
+  kvDim_ = config.numKvHeads * headDim;
+
+  // Her katman icin K ve V tensorlerini ayir
+  for (std::size_t layer = 0; layer < config.numLayers; ++layer) {
+    keys_.push_back(Tensor::Zeros(Shape{config.maxSeqLen, kvDim_}));
+    values_.push_back(Tensor::Zeros(Shape{config.maxSeqLen, kvDim_}));
+  }
+}
+
+Status KvCache::Write(std::size_t layer, std::size_t position,
+                      const Tensor& keys, const Tensor& values) {
+  const Dimension seqLen = keys.GetShape()[0];
+  
+  // Yeni K,V degerlerini dogru pozisyona yaz
+  for (Dimension row = 0; row < seqLen; ++row) {
+    for (Dimension col = 0; col < kvDim_; ++col) {
+      keys_[layer].At({position + row, col}) = keys.At({row, col});
+      values_[layer].At({position + row, col}) = values.At({row, col});
+    }
+  }
+  return Status::Ok();
+}
+</code></pre>
+
+<h3>6.4 Çıkarım Akışı</h3>
+<pre><code>// Ornek cikarim kodu
+InferenceEngine engine(model);
+
+// 1. Prefill (prompt isleme)
+vector&lt;TokenId&gt; promptTokens = tokenizer.Encode("Merhaba, nasilsin?");
+Tensor logits;
+engine.Prefill(promptTokens, logits);
+
+// Ilk tokeni sec (greedy sampling)
+TokenId nextToken = ArgMax(logits);
+
+// 2. Decode dongusu (token üretme)
+vector&lt;TokenId&gt; generated;
+for (int i = 0; i < maxNewTokens; ++i) {
+  engine.Decode(nextToken, logits);
+  nextToken = ArgMax(logits);
+  
+  if (nextToken == kEosTokenId) break;
+  generated.push_back(nextToken);
+}
+
+string response = tokenizer.Decode(generated);
+</code></pre>
+
+<h2>7. AGENT MODE</h2>
+<p>Agent Mode, modelin dis araclari (tools) kullanabilmesini saglar. ReAct pattern uygulanir.</p>
+
+<h3>7.1 ReAct Pattern</h3>
+<p>ReAct (Reasoning + Action), dil modellerinin dusunme ve eylem dongusuyle calismasidir.</p>
+
+<h4>ReAct Dongusu</h4>
+<pre><code>1. Thought (Dusunme): Model ne yapmasi gerektigini dusunur
+2. Action (Eylem): Hangi aracin kullanilacagina karar verir
+3. Observation (Gozlem): Aracin sonucunu alir
+4. Tekrar: Final answer'a ulasana kadar devam et
+</code></pre>
+
+<h3>7.2 Tool Yapisi</h3>
+<pre><code>// llm/include/llm/agent/tool.hpp
+struct ToolParameter {
+  std::string name;
+  std::string type;
+  std::string description;
+  bool required = false;
+  std::string defaultValue;
+};
+
+struct ToolInfo {
+  std::string name;
+  std::string description;
+  std::vector&lt;ToolParameter&gt; parameters;
+};
+
+struct ToolCall {
+  std::string toolName;
+  std::map&lt;std::string, std::string&gt; arguments;
+};
+
+struct ToolResult {
+  std::string toolName;
+  std::string content;
+  bool success = true;
+  std::string error;
+};
+
+class ToolRegistry {
+public:
+  void RegisterTool(std::unique_ptr&lt;Tool&gt; tool);
+  void RegisterFunction(const ToolInfo& info, ToolFunction func);
+  bool HasTool(const std::string& name) const;
+  Tool* GetTool(const std::string& name) const;
+  ToolResult Execute(const std::string& toolName, 
+                     const std::map&lt;std::string, std::string&gt;& args);
+};
+</code></pre>
+
+<h3>7.3 Built-in Tools</h3>
+<pre><code>// llm/src/agent/local_agent_backend.cpp
+namespace builtin_tools {
+
+// Echo Tool - Mesaji geri donder
+ToolInfo EchoToolInfo() {
+  ToolInfo info;
+  info.name = "echo";
+  info.description = "Returns the input message. Useful for testing.";
+  info.parameters = {
+    ToolParameter{.name = "message", .type = "string", 
+                  .description = "The message to echo", .required = true}
+  };
+  return info;
+}
+
+ToolResult EchoToolExecute(const std::map&lt;std::string, std::string&gt;& args) {
+  ToolResult result;
+  result.toolName = "echo";
+  result.success = true;
+  result.content = "Echo: " + args.at("message");
+  return result;
+}
+
+// Calculator Tool - Temel aritmetik islemler
+ToolInfo CalculatorToolInfo() {
+  ToolInfo info;
+  info.name = "calculator";
+  info.description = "Performs basic arithmetic calculations.";
+  info.parameters = {
+    ToolParameter{.name = "expression", .type = "string",
+                  .description = "The math expression (e.g., '2 + 2')", .required = true}
+  };
+  return info;
+}
+
+ToolResult CalculatorToolExecute(const std::map&lt;std::string, std::string&gt;& args) {
+  ToolResult result;
+  result.toolName = "calculator";
+  
+  const std::string& expr = args.at("expression");
+  // Islemciyi bul (+, -, *, /)
+  char op = 0;
+  std::size_t opPos = expr.find_first_of("+-*/");
+  
+  // Sol ve sag sayilari ayristir
+  double left = std::stod(expr.substr(0, opPos));
+  double right = std::stod(expr.substr(opPos + 1));
+  
+  // Islemi yap
+  switch (op) {
+    case '+': result.content = std::to_string(left + right); break;
+    case '-': result.content = std::to_string(left - right); break;
+    case '*': result.content = std::to_string(left * right); break;
+    case '/': result.content = std::to_string(left / right); break;
+  }
+  result.success = true;
+  return result;
+}
+
+void RegisterBuiltinTools(ToolRegistry& registry) {
+  registry.RegisterFunction(EchoToolInfo(), EchoToolExecute);
+  registry.RegisterFunction(CalculatorToolInfo(), CalculatorToolExecute);
+}
+
+} // namespace builtin_tools
+</code></pre>
+
+<h3>7.4 Agent Execute Akisi</h3>
+<pre><code>// llm/src/agent/local_agent_backend.cpp
+AgentResponse LocalAgentBackend::Execute(const AgentRequest& request) {
+  AgentResponse response;
+  
+  const std::size_t maxSteps = std::min(request.maxSteps, config_.maxSteps);
+  std::vector&lt;AgentStep&gt; steps;
+
+  for (std::size_t step = 0; step < maxSteps; ++step) {
+    AgentStep currentStep;
+    currentStep.stepNumber = step + 1;
+
+    // 1. Prompt'u olustur (tools + conversation)
+    const std::string prompt = BuildAgentPrompt(
+        request.userMessage,
+        request.systemPrompt,
+        conversation_);
+
+    // 2. Modeli calistir
+    const auto result = session_.Complete(prompt, request.maxTokensPerStep, rng_);
+    const std::string modelOutput = result.Value();
+
+    // 3. Tool call olup olmadigini kontrol et
+    const auto toolCalls = ParseToolCalls(modelOutput);
+
+    if (toolCalls && !toolCalls->empty() && config_.enableTools) {
+      // === TOOL CALL ===
+      currentStep.thought.action = "tool_call";
+      currentStep.thought.toolCalls = *toolCalls;
+
+      // 4. Her tool'u calistir
+      std::vector&lt;ToolResult&gt; toolResults;
+      for (const ToolCall& call : *toolCalls) {
+        const ToolResult toolResult = toolRegistry_.Execute(
+            call.toolName, call.arguments);
+        toolResults.push_back(toolResult);
+      }
+
+      currentStep.toolResults = toolResults;
+      currentStep.observation = FormatToolResults(toolResults);
+
+      // 5. Konusmaya ekle
+      conversation_.push_back({"assistant", modelOutput});
+      conversation_.push_back({"tool", currentStep.observation});
+    } else {
+      // === FINAL ANSWER ===
+      currentStep.thought.action = "final_answer";
+      currentStep.thought.reasoning = modelOutput;
+      response.finalAnswer = modelOutput;
+      response.success = true;
+      break;
+    }
+
+    steps.push_back(std::move(currentStep));
+  }
+
+  response.steps = std::move(steps);
+  response.totalSteps = steps.size();
+  return response;
+}
+</code></pre>
+
+<h3>7.5 Tool Call Format</h3>
+<p>Model, tool call'ları özel formatlarla işaretler.</p>
+<pre><code>// Tool call isareti
+[TOOL_CALLS]
+[{"name": "calculator", "arguments": {"expression": "5 * 3"}}]
+[/TOOL_CALLS]
+
+// Final answer isareti
+[FINAL_ANSWER] Islem sonucu: 15
+</code></pre>
+
+<h2>8. HTTP SUNUCU ve ENDPOINTLER</h2>
+<p>MAYA LLM, HTTP API ile servis edilir. Hybrid backend (local + OpenAI uyumlu) destekler.</p>
+
+<h3>8.1 Server Yapisi</h3>
+<pre><code>// llm/include/llm/server/chat_http_server.hpp
+class ChatHttpServer {
+public:
+  ChatHttpServer(std::unique_ptr&lt;HybridChatBackend&gt; backend,
+                 std::unique_ptr&lt;AutoLearnService&gt; autoLearn = nullptr);
+
+  Status Run(const std::string& host, int port);
+  void RequestStop();
+
+  ChatResponse HandleChat(const ChatRequest& request);
+  Status HandleReset();
+
+private:
+  std::unique_ptr&lt;HybridChatBackend&gt; backend_;
+  std::unique_ptr&lt;AutoLearnService&gt; autoLearn_;
+  bool stopRequested_ = false;
+};
+</code></pre>
+
+<h3>8.2 Hybrid Backend Config</h3>
+<pre><code>// llm/include/llm/server/hybrid_chat_backend.hpp
+struct HybridBackendConfig {
+  std::string modelPath = "model.ckptq";       // Yerel model yolu
+  std::string tokenizerPath = "tokenizer_data";  // Tokenizer yolu
+  std::string apiHost = "127.0.0.1:11434";      // Ollama/OAI host
+  std::string apiKey;                             // API anahtari
+  std::string openAiModel = "llama3.2";           // OAI model adi
+  std::string activeBackend = "openai";            // Aktif backend
+  bool enableAgentMode = true;                     // Agent modu
+};
+</code></pre>
+
+<h3>8.3 HTTP Endpointleri</h3>
+
+<h4>GET /api/v1/health</h4>
+<p>Sunucu durumunu kontrol eder.</p>
+<pre><code>// Response ornegi
+{
+  "backend": "openai",
+  "model": "llama3.2",
+  "localAvailable": true,
+  "openAiAvailable": true,
+  "autoLearn": {
+    "enabled": true,
+    "queueSize": 0
+  }
+}
+</code></pre>
+
+<h4>GET /api/v1/config</h4>
+<p>Mevcut konfigurasyonu getirir.</p>
+<pre><code>// Response
+{
+  "backend": "openai",
+  "model": "llama3.2",
+  "localAvailable": true,
+  "openAiAvailable": true,
+  "openAiModel": "llama3.2"
+}
+</code></pre>
+
+<h4>POST /api/v1/config</h4>
+<p>Backend ve model ayarlarini degistir.</p>
+<pre><code>// Request
+{
+  "backend": "local",      // "local" veya "openai"
+  "openAiModel": "gpt-4"   // Opsiyonel
+}
+
+// Response
+{
+  "backend": "local",
+  "model": "model.ckptq",
+  "localAvailable": true,
+  "openAiAvailable": true
+}
+</code></pre>
+
+<h4>POST /api/v1/chat</h4>
+<p>Ana sohbet endpointi.</p>
+<pre><code>// llm/src/server/chat_http_server.cpp
+http.Post("/api/v1/chat", [this](const httplib::Request& req, httplib::Response& res) {
+  const auto parsed = detail::ParseChatRequest(req.body);
+  const ChatResponse response = HandleChat(parsed.value());
+  
+  // Auto-learn (ozel durumlarda)
+  if (autoLearn_ && response.allowAutoLearn && 
+      response.error.empty() && !response.text.empty()) {
+    autoLearn_->OnChatCompleted(parsed->prompt, response.text, response.intent);
+  }
+  
+  res.set_content(detail::BuildChatResponseJson(response), "application/json");
+});
+</code></pre>
+
+<pre><code>// Chat Request
+{
+  "prompt": "Merhaba, 5 * 3 kactir?",
+  "maxTokens": 256,
+  "temperature": 0.7,
+  "greedy": false
+}
+
+// Chat Response
+{
+  "text": "Islem sonucu 15'tir.",
+  "error": "",
+  "intent": "math",
+  "allowAutoLearn": true
+}
+</code></pre>
+
+<h4>POST /api/v1/reset</h4>
+<p>Konusma gecmisini sifirlar.</p>
+<pre><code>// Response
+{
+  "ok": true
+}
+</code></pre>
+
+<h3>8.4 Server Run Implemantasyonu</h3>
+<pre><code>// llm/src/server/chat_http_server.cpp
+Status ChatHttpServer::Run(const std::string& host, const int port) {
+  httplib::Server http;
+  stopRequested_ = false;
+
+  // CORS basliklari
+  http.set_default_headers({
+    {"Access-Control-Allow-Origin", "*"},
+    {"Access-Control-Allow-Methods", "GET, POST, OPTIONS"},
+    {"Access-Control-Allow-Headers", "Content-Type"}
+  });
+
+  // OPTIONS preflight
+  http.Options(R"(/.*)", [](const httplib::Request&, httplib::Response& res) {
+    res.status = 204;
+  });
+
+  // Endpointler
+  http.Get("/api/v1/health", ...);
+  http.Get("/api/v1/config", ...);
+  http.Post("/api/v1/config", ...);
+  http.Post("/api/v1/reset", ...);
+  http.Post("/api/v1/chat", ...);
+
+  // Portu dinle
+  if (!http.bind_to_port(host.c_str(), port)) {
+    return Status::Fail(ErrorCode::Internal, "failed to bind HTTP port");
+  }
+
+  // Arka planda dinlemeye basla
+  std::thread serverThread([&http]() { http.listen_after_bind(); });
+
+  // Durana kadar bekle
+  while (!stopRequested_) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+  }
+
+  // Sunucuyu durdur
+  http.stop();
+  serverThread.join();
+
+  return Status::Ok();
+}
+</code></pre>
+
+<h3>8.5 Chat Request/Response Yapilari</h3>
+<pre><code>// llm/include/llm/server/chat_backend.hpp
+struct ChatRequest {
+  std::string prompt;           // Kullanici mesaji
+  std::string intent;           // Tanimli intent (opsiyonel)
+  int maxTokens = 512;          // Maksimum token
+  bool greedy = false;          // Greedy sampling
+  float temperature = 0.7f;     // Temperature
+  std::optional&lt;int&gt; seed;      // RNG seed (opsiyonel)
+};
+
+struct ChatResponse {
+  std::string text;             // Model cevabi
+  std::string intent;           // Algilanan intent
+  std::string error;            // Hata mesaji (bos ise yok)
+  bool allowAutoLearn = true;   // Auto-learn izni
+};
+</code></pre>
+</body>
+</html>
