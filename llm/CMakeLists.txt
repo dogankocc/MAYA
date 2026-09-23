@@ -49,6 +49,10 @@ add_library(llm_core STATIC
   src/agent/tool.cpp
   src/agent/local_agent_backend.cpp
   src/cli/agent_cli.cpp
+  src/storage/local_storage_backend.cpp
+  src/storage/google_drive_storage_backend.cpp
+  src/server/model_manager.cpp
+  src/server/model_presets.cpp
 )
 
 target_include_directories(llm_core
@@ -61,6 +65,8 @@ target_include_directories(llm_core
 target_compile_features(llm_core PUBLIC cxx_std_20)
 
 include(FetchContent)
+
+# httplib (HTTP client ve server)
 FetchContent_Declare(
   cpp_httplib
   GIT_REPOSITORY https://github.com/yhirose/cpp-httplib.git

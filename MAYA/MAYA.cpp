@@ -12,8 +12,65 @@
 #include "llm/training/chat_corpus.hpp"
 #include "llm/server/hybrid_chat_backend.hpp"
 #include "llm/server/auto_learn_service.hpp"
+#include "llm/storage/storage_backend.hpp"
 
 namespace {
+
+// Forward declarations (onceden bildir - C++ fonksiyon sirasi sorunu icin)
+bool HasFlag(int argc, char** argv, const std::string& key);
+std::string GetArg(int argc, char** argv, const std::string& key, const std::string& defaultValue);
+
+int RunUpload(int argc, char** argv) {
+  const std::string filePath = GetArg(argc, argv, "--file", "");
+  const std::string modelName = GetArg(argc, argv, "--name", "maya-model");
+  const std::string version = GetArg(argc, argv, "--version", "latest");
+  const std::string clientId = GetArg(argc, argv, "--drive-client-id", "");
+  const std::string clientSecret = GetArg(argc, argv, "--drive-client-secret", "");
+  const std::string refreshToken = GetArg(argc, argv, "--drive-refresh-token", "");
+  const std::string folderId = GetArg(argc, argv, "--drive-folder-id", "");
+
+  if (filePath.empty()) {
+    std::cerr << "Error: --file is required\n";
+    return 1;
+  }
+
+  if (clientId.empty() || clientSecret.empty() || refreshToken.empty()) {
+    std::cerr << "Error: --drive-client-id, --drive-client-secret, and --drive-refresh-token are required\n";
+    return 1;
+  }
+
+  std::cout << "Uploading to Google Drive...\n";
+  std::cout << "  File: " << filePath << "\n";
+  std::cout << "  Model: " << modelName << "\n";
+  std::cout << "  Version: " << version << "\n";
+
+  llm::storage::StorageConfig config;
+  config.type = llm::storage::StorageConfig::Type::GoogleDrive;
+  config.driveClientId = clientId;
+  config.driveClientSecret = clientSecret;
+  config.driveRefreshToken = refreshToken;
+  config.driveRootFolderId = folderId;
+
+  auto backend = llm::storage::CreateStorageBackend(config);
+  if (!backend) {
+    std::cerr << "Error: Failed to create storage backend\n";
+    return 1;
+  }
+
+  const llm::Status status = backend->UploadModelCheckpoint(filePath, modelName, version);
+  if (!status.IsOk()) {
+    std::cerr << "Error: Upload failed: " << status.Message() << "\n";
+    return 1;
+  }
+
+  std::cout << "Upload successful!\n";
+  return 0;
+}
+
+int RunDownload(int argc, char** argv) {
+  std::cout << "Download not fully implemented yet\n";
+  return 1;
+}
 
 void PrintUsage() {
   std::cout << "Usage:\n"
@@ -87,12 +144,12 @@ std::string ResolveOpenAiModel(int argc, char** argv) {
 llm::ModelConfig BuildChatModelConfig(const std::size_t vocabSize) {
   llm::ModelConfig config = llm::Config::DefaultModelConfig();
   config.vocabSize = vocabSize;
-  config.hiddenDim = 512;
+  config.hiddenDim = 768;
   config.numLayers = 24;
-  config.numHeads = 8;
-  config.numKvHeads = 4;
-  config.intermediateDim = 2048;
-  config.maxSeqLen = 384;
+  config.numHeads = 12;
+  config.numKvHeads = 6;
+  config.intermediateDim = 3072;
+  config.maxSeqLen = 512;
   return config;
 }
 
@@ -407,6 +464,12 @@ int main(int argc, char** argv) {
   }
   if (command == "train") {
     return RunTrain(argc, argv);
+  }
+  if (command == "upload") {
+    return RunUpload(argc, argv);
+  }
+  if (command == "download") {
+    return RunDownload(argc, argv);
   }
   if (command == "demo") {
     return RunDemo();

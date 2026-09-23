@@ -12,6 +12,8 @@ enum class ErrorCode {
   OutOfRange,
   IoError,
   NotImplemented,
+  Unimplemented = NotImplemented,
+  NotFound,
   Internal
 };
 
