@@ -30,45 +30,197 @@
 </head>
 <body>
 
-<h1>MAYA LLM – Algoritma → Kod Haritası</h1>
-<p class="muted">Bu doküman "algoritmanın hangi adımı kodun neresinde?" sorusuna cevap verir. Her tablo satırı bir algoritma adımını dosya, fonksiyon ve satır numarasıyla eşler. Satır numaraları 28 Eyl 2026 tarihli kaynağa göredir; kod değişince birkaç satır kayabilir, fonksiyon adı aranınca bulunur.</p>
+    <h1>MAYA LLM – Algoritma → Kod Haritası</h1>
+    <p class="muted">Bu doküman "algoritmanın hangi adımı kodun neresinde?" sorusuna cevap verir. Her tablo satırı bir algoritma adımını dosya, fonksiyon ve satır numarasıyla eşler. Satır numaraları 28 Eyl 2026 tarihli kaynağa göredir; kod değişince birkaç satır kayabilir, fonksiyon adı aranınca bulunur.</p>
 
-<div class="box toc">
-  <a href="#s1">1. Nasıl okunur</a><br>
-  <a href="#s2">2. Büyük resim: hangi process ne yapar</a><br>
-  <a href="#s3">3. UI'da "Eğitimi Başlat" → arka planda ne olur</a><br>
-  <a href="#s4">4. TrainingRunner::Run – eğitim algoritmasının tamamı</a><br>
-  <a href="#s4a">&nbsp;&nbsp;4.1 Veri setlerini yükle</a><br>
-  <a href="#s4b">&nbsp;&nbsp;4.2 Devam mı, sıfırdan mı? (session key)</a><br>
-  <a href="#s4c">&nbsp;&nbsp;4.3 Tokenizer eğitimi (BPE)</a><br>
-  <a href="#s4d">&nbsp;&nbsp;4.4 Modeli oluştur</a><br>
-  <a href="#s4e">&nbsp;&nbsp;4.5 Örnekleri token'a çevir</a><br>
-  <a href="#s4f">&nbsp;&nbsp;4.6 Optimizer'ı geri yükle</a><br>
-  <a href="#s4g">&nbsp;&nbsp;4.7 Eğitim döngüsü (bir adım)</a><br>
-  <a href="#s4h">&nbsp;&nbsp;4.8 Geçici checkpoint yazma</a><br>
-  <a href="#s4i">&nbsp;&nbsp;4.9 Durdurma ve yayınlama</a><br>
-  <a href="#s5">5. Bir eğitim adımının içi: ileri, kayıp, geri, güncelle</a><br>
-  <a href="#s6">6. AdamW: m ve v nedir, nerede tutulur</a><br>
-  <a href="#s7">7. Diskteki dosyalar ve formatları</a><br>
-  <a href="#s8">8. Sohbet (çıkarım) akışı: mesaj → cevap</a><br>
-  <a href="#s9">9. Trainer web arayüzü (trainer_web/app.js)</a><br>
-  <a href="#s10">10. HTTP endpoint listesi</a><br>
-  <a href="#s11">11. Sık sorulanlar</a><br>
-  <a href="#s12">12. Klasör haritası</a>
-</div>
+    <div class="box toc">
+        <a href="#s1">1. Nasıl okunur</a><br>
+        <a href="#s2">2. Büyük resim: hangi process ne yapar</a><br>
+        <a href="#s3">3. UI'da "Eğitimi Başlat" → arka planda ne olur</a><br>
+        <a href="#s4">4. TrainingRunner::Run – eğitim algoritmasının tamamı</a><br>
+        <a href="#s4a">&nbsp;&nbsp;4.1 Veri setlerini yükle</a><br>
+        <a href="#s4b">&nbsp;&nbsp;4.2 Devam mı, sıfırdan mı? (session key)</a><br>
+        <a href="#s4c">&nbsp;&nbsp;4.3 Tokenizer eğitimi (BPE)</a><br>
+        <a href="#s4d">&nbsp;&nbsp;4.4 Modeli oluştur</a><br>
+        <a href="#s4e">&nbsp;&nbsp;4.5 Örnekleri token'a çevir</a><br>
+        <a href="#s4f">&nbsp;&nbsp;4.6 Optimizer'ı geri yükle</a><br>
+        <a href="#s4g">&nbsp;&nbsp;4.7 Eğitim döngüsü (bir adım)</a><br>
+        <a href="#s4h">&nbsp;&nbsp;4.8 Geçici checkpoint yazma</a><br>
+        <a href="#s4i">&nbsp;&nbsp;4.9 Durdurma ve yayınlama</a><br>
+        <a href="#s5">5. Bir eğitim adımının içi: ileri, kayıp, geri, güncelle</a><br>
+        <a href="#s6">6. AdamW: m ve v nedir, nerede tutulur</a><br>
+        <a href="#s7">7. Diskteki dosyalar ve formatları</a><br>
+        <a href="#s8">8. Sohbet (çıkarım) akışı: mesaj → cevap</a><br>
+        <a href="#s9">9. Trainer web arayüzü (trainer_web/app.js)</a><br>
+        <a href="#s10">10. HTTP endpoint listesi</a><br>
+        <a href="#s11">11. Sık sorulanlar</a><br>
+        <a href="#s12">12. Klasör haritası</a>
+    </div>
 
-<!-- ============================================================ -->
-<h2 id="s1">1. Nasıl okunur</h2>
-<p>Üç seviye var:</p>
-<ol>
-  <li><b>Process seviyesi</b> (Bölüm 2): Windows'ta hangi .exe hangi işi yapıyor.</li>
-  <li><b>Akış seviyesi</b> (Bölüm 3–4): "Başlat"a basıldığında hangi fonksiyon hangisini çağırıyor.</li>
-  <li><b>Matematik seviyesi</b> (Bölüm 5–6): tek bir eğitim adımında hangi formül hangi satırda.</li>
-</ol>
-<p>Tablolardaki <code>dosya:satır</code> notasyonu doğrudan Visual Studio'da <kbd>Ctrl+G</kbd> ile gidilebilir.</p>
+    <!-- ============================================================ -->
+    <h2>Kabaca Mimari</h2>
+    <p style="white-space: pre-line">
+        Tokenize edilmiş veri, modelin girdisidir.
+        Örneğin: "Ben okula gittim" tokenize edilince, [15, 842, 391] gibi sayılara dönüşür.
+        Bunlar modele girer.
+        Transformer bloğu ise bu tokenların işlendiği beyin parçasıdır.
 
-<!-- ============================================================ -->
-<h2 id="s2">2. Büyük resim: hangi process ne yapar</h2>
+        Metin
+        ↓
+        Tokenizer
+        ↓
+        [15, 842, 391]
+        ↓
+        Embedding
+        ↓
+        Transformer Blok 1
+        ↓
+        Transformer Blok 2
+        ↓
+        Transformer Blok 3
+        ...
+        ↓
+        Transformer Blok 12
+        ↓
+        Çıktı Tahmini
+    </p>
+    <p style="white-space: pre-line">
+        Örneğin Katman (Layers) = 12 demek 12 adet Transformer Blok demektir.
+        
+        Kısacası:
+        
+        Token = Girdi verisi
+
+        Embedding = Tokenların sayısal temsili
+
+        Transformer Bloğu = Veriyi işleyen katman
+
+        Layer Sayısı = Kaç Transformer Bloğu olduğu
+
+        Hidden Size = Her blok içinde taşınan vektör boyutu
+
+        FFN Size = Her blok içindeki geçici genişleme boyutu
+
+
+
+        3072 kelimelik sözlük
+        ↓
+        216 boyutlu temsil
+        ↓
+        Transformer Blok 1 (Bir Transformer bloğunun içinde Attention ve FFN)
+        ↓
+        Transformer Blok 2
+        ↓
+        ...
+        ↓
+        Transformer Blok 12
+        ↓
+        Sonraki token tahmini
+    </p>
+    <p style="white-space: pre-line">
+        Forward (Tahmin)
+        ↓
+        Loss (Hata Hesabı)
+        ↓
+        Backward (Hatanın Sebebini Bul)
+        ↓
+        AdamW (Ağırlıkları Güncelle)
+        ↓
+        Başa Dön
+
+        FFN tahmin aşamasının bir parçasıdır.
+
+        Tahmin aşaması (Forward) aşağıdaki adımlardan oluşur:
+
+        Forward
+        ├─ Embedding
+        ├─ Attention
+        ├─ FFN
+        ├─ RMSNorm
+        └─ Logits
+    </p>
+    <p style="white-space: pre-line">
+        Mesela şu cümleyi eğitiyorsun:
+        "Ben okula gittim"
+
+        Model
+
+        Ben
+        ↓
+        ?
+
+        sorusuna cevap vermeye çalışıyor.
+
+        Tahmin aşamasında:
+
+        Token
+        ↓
+        Embedding
+        ↓
+        Attention
+        ↓
+        FFN
+        ↓
+        Attention
+        ↓
+        FFN
+        ↓
+        ...
+        ↓
+        Logits
+
+        Sonra model diyor ki:
+        Tahminim: evde
+
+        Ama doğru cevap: okula
+
+        O zaman, Loss hesaplanır. Ardından, Bu hataya hangi ağırlıklar sebep oldu? sorusunun cevabı bulunur.
+        Buda Backward aşamasıdır.
+        FFN'in görevi kabaca şudur,
+        Attention:
+        Hangi kelimeye dikkat etmeliyim?
+        sorusunu çözer.
+        FFN:
+        Bu bilgiyi nasıl dönüştürmeliyim? sorusunu çözer.
+
+        12 katmanlı modelinde aslında her katmanda:
+        Attention
+        ↓
+        FFN
+        ikilisi var.
+
+        Yani:
+        Katman 1
+        ├─ Attention
+        └─ FFN
+
+        Katman 2
+        ├─ Attention
+        └─ FFN
+
+        ...
+
+        Katman 12
+        ├─ Attention
+        └─ FFN
+
+        Dolayısıyla eğitim sırasında FFN:
+        12 kez forward
+        12 kez backward
+        çalışıyor.
+    </p>
+
+    <h2 id="s1">1. Nasıl okunur</h2>
+    <p>Üç seviye var:</p>
+    <ol>
+        <li><b>Process seviyesi</b> (Bölüm 2): Windows'ta hangi .exe hangi işi yapıyor.</li>
+        <li><b>Akış seviyesi</b> (Bölüm 3–4): "Başlat"a basıldığında hangi fonksiyon hangisini çağırıyor.</li>
+        <li><b>Matematik seviyesi</b> (Bölüm 5–6): tek bir eğitim adımında hangi formül hangi satırda.</li>
+    </ol>
+    <p>Tablolardaki <code>dosya:satır</code> notasyonu doğrudan Visual Studio'da <kbd>Ctrl+G</kbd> ile gidilebilir.</p>
+
+    <!-- ============================================================ -->
+    <h2 id="s2">2. Büyük resim: hangi process ne yapar</h2>
 
 <pre><code>MAYA.exe (argümansız = "launch")                 MAYA/MAYA.cpp:428  main()
  │
@@ -84,46 +236,46 @@
        chat_app\...\llm_chat.exe (varsa)
        Edge/Chrome --app=http://127.0.0.1:8766   MAYA/launcher.cpp  OpenUrlAsApp()</code></pre>
 
-<table>
-<tr><th>Ne</th><th>Dosya</th><th>Fonksiyon</th><th>Açıklama</th></tr>
-<tr><td>Komut seçimi</td><td><code>MAYA/MAYA.cpp:428</code></td><td><code>main()</code></td><td><code>argv[1]</code> yoksa <code>launch</code>. Önce <code>ResolveProjectRoot()</code> ile çalışma dizinini proje köküne alır.</td></tr>
-<tr><td>Chat + trainer + UI</td><td><code>MAYA/MAYA.cpp:371</code></td><td><code>RunLaunch()</code></td><td>Trainer'ı spawn eder, chat sunucusunu kurar, UI thread'ini başlatır, sunucu <code>Run</code> ile bloklanır.</td></tr>
-<tr><td>Trainer process</td><td><code>MAYA/MAYA.cpp:218</code></td><td><code>RunTrainServer()</code></td><td><code>TrainingService</code> + <code>TrainingHttpServer</code> oluşturur. Ctrl+C için <code>InstallStopHandler</code>.</td></tr>
-<tr><td>Process spawn</td><td><code>MAYA/launcher.cpp</code></td><td><code>SpawnDetached()</code></td><td><code>CreateProcessW</code> ile yeni konsolda çalıştırır.</td></tr>
-<tr><td>Komut satırı eğitim</td><td><code>MAYA/MAYA.cpp:148</code></td><td><code>RunTrainingJob()</code></td><td><code>MAYA train</code> ve <code>MAYA demo</code> da aynı <code>TrainingRunner</code>'ı kullanır. UI'sız eğitim.</td></tr>
-</table>
+    <table>
+        <tr><th>Ne</th><th>Dosya</th><th>Fonksiyon</th><th>Açıklama</th></tr>
+        <tr><td>Komut seçimi</td><td><code>MAYA/MAYA.cpp:428</code></td><td><code>main()</code></td><td><code>argv[1]</code> yoksa <code>launch</code>. Önce <code>ResolveProjectRoot()</code> ile çalışma dizinini proje köküne alır.</td></tr>
+        <tr><td>Chat + trainer + UI</td><td><code>MAYA/MAYA.cpp:371</code></td><td><code>RunLaunch()</code></td><td>Trainer'ı spawn eder, chat sunucusunu kurar, UI thread'ini başlatır, sunucu <code>Run</code> ile bloklanır.</td></tr>
+        <tr><td>Trainer process</td><td><code>MAYA/MAYA.cpp:218</code></td><td><code>RunTrainServer()</code></td><td><code>TrainingService</code> + <code>TrainingHttpServer</code> oluşturur. Ctrl+C için <code>InstallStopHandler</code>.</td></tr>
+        <tr><td>Process spawn</td><td><code>MAYA/launcher.cpp</code></td><td><code>SpawnDetached()</code></td><td><code>CreateProcessW</code> ile yeni konsolda çalıştırır.</td></tr>
+        <tr><td>Komut satırı eğitim</td><td><code>MAYA/MAYA.cpp:148</code></td><td><code>RunTrainingJob()</code></td><td><code>MAYA train</code> ve <code>MAYA demo</code> da aynı <code>TrainingRunner</code>'ı kullanır. UI'sız eğitim.</td></tr>
+    </table>
 
-<!-- ============================================================ -->
-<h2 id="s3">3. UI'da "Eğitimi Başlat" → arka planda ne olur</h2>
+    <!-- ============================================================ -->
+    <h2 id="s3">3. UI'da "Eğitimi Başlat" → arka planda ne olur</h2>
 
-<div class="flow">
-<b>1. Tarayıcı</b> — <code>trainer_web/app.js:350 startTraining()</code><br>
-Form alanlarını <code>readConfig()</code> (satır 155) ile JSON'a çevirir. <code>POST /api/v1/train/start</code> gönderir.
-</div>
-<div class="flow">
-<b>2. HTTP katmanı</b> — <code>llm/src/server/training_http_server.cpp:177</code><br>
-JSON'u <code>ParseTrainingJobConfig()</code> (<code>training_session.cpp:234</code>) ile <code>TrainingJobConfig</code> struct'ına çevirir. <code>service.Start(config)</code> çağırır.
-</div>
-<div class="flow">
-<b>3. Servis</b> — <code>llm/src/server/training_service.cpp:141 TrainingService::Start()</code><br>
-Zaten eğitim var mı kontrol eder. Durumu <code>Running</code> yapar. <b>Yeni bir thread</b> açar: <code>worker_ = std::thread(RunJob)</code> (satır 160). HTTP isteği hemen <code>{"ok":true}</code> döner.
-</div>
-<div class="flow">
-<b>4. Worker thread</b> — <code>training_service.cpp:173 TrainingService::RunJob()</code><br>
-<code>TrainingRunner</code> oluşturur (satır 186). Log callback'i <code>AppendLog</code>'a, ilerleme callback'i <code>status_</code>'a yazar. <code>runner.Run(stopRequested_)</code> çağırır — <b>eğitim burada saatlerce döner</b>. Bitince duruma göre <code>Completed / Stopped / Failed</code> yazar (satır 195–205).
-</div>
-<div class="flow">
-<b>5. Eğitim algoritması</b> — <code>llm/src/training/training_session.cpp:372 TrainingRunner::Run()</code><br>
-Bölüm 4'ün tamamı bu fonksiyon.
-</div>
-<div class="flow">
-<b>6. UI güncellemesi</b> — <code>app.js:322 pollStatus()</code>, <code>app.js:334 pollLogs()</code><br>
-Her 1 saniyede <code>GET /status</code> ve <code>GET /logs?since=N</code>. Sunucu tarafı: <code>training_service.cpp:228 GetStatus()</code>, <code>:241 GetLogs()</code>.
-</div>
+    <div class="flow">
+        <b>1. Tarayıcı</b> — <code>trainer_web/app.js:350 startTraining()</code><br>
+        Form alanlarını <code>readConfig()</code> (satır 155) ile JSON'a çevirir. <code>POST /api/v1/train/start</code> gönderir.
+    </div>
+    <div class="flow">
+        <b>2. HTTP katmanı</b> — <code>llm/src/server/training_http_server.cpp:177</code><br>
+        JSON'u <code>ParseTrainingJobConfig()</code> (<code>training_session.cpp:234</code>) ile <code>TrainingJobConfig</code> struct'ına çevirir. <code>service.Start(config)</code> çağırır.
+    </div>
+    <div class="flow">
+        <b>3. Servis</b> — <code>llm/src/server/training_service.cpp:141 TrainingService::Start()</code><br>
+        Zaten eğitim var mı kontrol eder. Durumu <code>Running</code> yapar. <b>Yeni bir thread</b> açar: <code>worker_ = std::thread(RunJob)</code> (satır 160). HTTP isteği hemen <code>{"ok":true}</code> döner.
+    </div>
+    <div class="flow">
+        <b>4. Worker thread</b> — <code>training_service.cpp:173 TrainingService::RunJob()</code><br>
+        <code>TrainingRunner</code> oluşturur (satır 186). Log callback'i <code>AppendLog</code>'a, ilerleme callback'i <code>status_</code>'a yazar. <code>runner.Run(stopRequested_)</code> çağırır — <b>eğitim burada saatlerce döner</b>. Bitince duruma göre <code>Completed / Stopped / Failed</code> yazar (satır 195–205).
+    </div>
+    <div class="flow">
+        <b>5. Eğitim algoritması</b> — <code>llm/src/training/training_session.cpp:372 TrainingRunner::Run()</code><br>
+        Bölüm 4'ün tamamı bu fonksiyon.
+    </div>
+    <div class="flow">
+        <b>6. UI güncellemesi</b> — <code>app.js:322 pollStatus()</code>, <code>app.js:334 pollLogs()</code><br>
+        Her 1 saniyede <code>GET /status</code> ve <code>GET /logs?since=N</code>. Sunucu tarafı: <code>training_service.cpp:228 GetStatus()</code>, <code>:241 GetLogs()</code>.
+    </div>
 
-<!-- ============================================================ -->
-<h2 id="s4">4. TrainingRunner::Run – eğitim algoritmasının tamamı</h2>
-<p>Dosya: <code>llm/src/training/training_session.cpp</code>. Fonksiyon <code>Run()</code> satır 372'de başlar, 529'da biter. Aşağıdaki alt bölümler bu fonksiyonun içini sırayla anlatır.</p>
+    <!-- ============================================================ -->
+    <h2 id="s4">4. TrainingRunner::Run – eğitim algoritmasının tamamı</h2>
+    <p>Dosya: <code>llm/src/training/training_session.cpp</code>. Fonksiyon <code>Run()</code> satır 372'de başlar, 529'da biter. Aşağıdaki alt bölümler bu fonksiyonun içini sırayla anlatır.</p>
 
 <pre><code>Run(stopRequested)
   ├─ 4.1  LoadSamples()                 satır 378      veri setleri → DialogueSample listesi
@@ -137,79 +289,79 @@ Her 1 saniyede <code>GET /status</code> ve <code>GET /logs?since=N</code>. Sunuc
   ├─ 4.9a stopped_ ise kaydet, çık      satır 516–526
   └─ 4.9b Publish()                     satır 528 → 531</code></pre>
 
-<h3 id="s4a">4.1 Veri setlerini yükle</h3>
-<table>
-<tr><th>Adım</th><th>Dosya:Satır</th><th>Fonksiyon</th><th>Ne yapar</th></tr>
-<tr><td>Seçili dosyaları oku</td><td><code>training_session.cpp:110</code></td><td><code>LoadSamples()</code></td><td>Dahili corpus (isteniyorsa) + her seçili <code>.jsonl</code>. Birleştirir, tekilleştirir. Bir dosya bozuksa hata döner (eğitim başlamaz).</td></tr>
-<tr><td>Tek .jsonl dosyası</td><td><code>llm/src/training/chat_corpus.cpp:52</code></td><td><code>LoadDialogueCorpus()</code></td><td>Satır satır okur. <code>#</code> ile başlayan açıklama satırlarını atlar. Her satır → <code>DialogueSample{intent, system, prompt, response}</code>.</td></tr>
-<tr><td>JSON satırını ayrıştır</td><td><code>llm/src/training/jsonl_parser.cpp</code></td><td><code>ParseJsonlDialogueLine()</code></td><td><code>{"intent":..,"messages":[{"role":"user"},{"role":"assistant"}]}</code> formatı.</td></tr>
-<tr><td>Dahili 170 örnek</td><td><code>chat_corpus.cpp:150</code></td><td><code>DefaultDialogueCorpus()</code></td><td>Koda gömülü Türkçe sohbet örnekleri. UI'da "Built-in" checkbox'ı.</td></tr>
-<tr><td>Tekilleştirme</td><td><code>chat_corpus.cpp:133</code></td><td><code>MergeDialogueCorpora()</code></td><td>Aynı <code>prompt</code> ikinci kez gelirse atılır.</td></tr>
-</table>
-<p>Log çıktısı: <code>Samples: 173386 unique (19 dataset file(s), built-in dialogues included)</code></p>
+    <h3 id="s4a">4.1 Veri setlerini yükle</h3>
+    <table>
+        <tr><th>Adım</th><th>Dosya:Satır</th><th>Fonksiyon</th><th>Ne yapar</th></tr>
+        <tr><td>Seçili dosyaları oku</td><td><code>training_session.cpp:110</code></td><td><code>LoadSamples()</code></td><td>Dahili corpus (isteniyorsa) + her seçili <code>.jsonl</code>. Birleştirir, tekilleştirir. Bir dosya bozuksa hata döner (eğitim başlamaz).</td></tr>
+        <tr><td>Tek .jsonl dosyası</td><td><code>llm/src/training/chat_corpus.cpp:52</code></td><td><code>LoadDialogueCorpus()</code></td><td>Satır satır okur. <code>#</code> ile başlayan açıklama satırlarını atlar. Her satır → <code>DialogueSample{intent, system, prompt, response}</code>.</td></tr>
+        <tr><td>JSON satırını ayrıştır</td><td><code>llm/src/training/jsonl_parser.cpp</code></td><td><code>ParseJsonlDialogueLine()</code></td><td><code>{"intent":..,"messages":[{"role":"user"},{"role":"assistant"}]}</code> formatı.</td></tr>
+        <tr><td>Dahili 170 örnek</td><td><code>chat_corpus.cpp:150</code></td><td><code>DefaultDialogueCorpus()</code></td><td>Koda gömülü Türkçe sohbet örnekleri. UI'da "Built-in" checkbox'ı.</td></tr>
+        <tr><td>Tekilleştirme</td><td><code>chat_corpus.cpp:133</code></td><td><code>MergeDialogueCorpora()</code></td><td>Aynı <code>prompt</code> ikinci kez gelirse atılır.</td></tr>
+    </table>
+    <p>Log çıktısı: <code>Samples: 173386 unique (19 dataset file(s), built-in dialogues included)</code></p>
 
-<h3 id="s4b">4.2 Devam mı, sıfırdan mı? (session key)</h3>
-<table>
-<tr><th>Adım</th><th>Dosya:Satır</th><th>Fonksiyon</th><th>Ne yapar</th></tr>
-<tr><td>Anahtar üret</td><td><code>training_session.cpp:199</code></td><td><code>ComputeSessionKey()</code></td><td>Sıralı dataset yolları + dosya boyutları + model boyutları + vocab + steps + lr + seed → FNV-1a 64-bit hash. <code>checkpoint_interval</code> <b>dahil değil</b> (değiştirsen resume bozulmaz).</td></tr>
-<tr><td>Eski oturumu oku</td><td><code>training_session.cpp:313</code></td><td><code>LoadSessionState()</code></td><td><code>training_work/session.json</code> varsa parse eder.</td></tr>
-<tr><td>Karar</td><td><code>training_session.cpp:389–396</code></td><td><code>Run()</code> içi</td><td><code>resuming = eskiKey == yeniKey && completed &lt; total && model.ckpt var && tokenizer var</code>. Uymazsa log: <i>"Previous session does not match this configuration; clearing temp checkpoint"</i>.</td></tr>
-<tr><td>Devam: tokenizer yükle</td><td><code>training_session.cpp:399</code></td><td><code>BpeTokenizer::Load()</code></td><td><code>training_work/tokenizer/</code></td></tr>
-<tr><td>Devam: model yükle</td><td><code>training_session.cpp:410</code></td><td><code>Checkpoint::Load()</code></td><td><code>training_work/model.ckpt</code>. <code>SameArchitecture()</code> (satır 104) ile boyutlar doğrulanır.</td></tr>
-<tr><td>Sıfırdan: temizle</td><td><code>training_session.cpp:324</code></td><td><code>ClearWorkDir()</code></td><td><code>training_work/</code> tamamen silinir.</td></tr>
-</table>
+    <h3 id="s4b">4.2 Devam mı, sıfırdan mı? (session key)</h3>
+    <table>
+        <tr><th>Adım</th><th>Dosya:Satır</th><th>Fonksiyon</th><th>Ne yapar</th></tr>
+        <tr><td>Anahtar üret</td><td><code>training_session.cpp:199</code></td><td><code>ComputeSessionKey()</code></td><td>Sıralı dataset yolları + dosya boyutları + model boyutları + vocab + steps + lr + seed → FNV-1a 64-bit hash. <code>checkpoint_interval</code> <b>dahil değil</b> (değiştirsen resume bozulmaz).</td></tr>
+        <tr><td>Eski oturumu oku</td><td><code>training_session.cpp:313</code></td><td><code>LoadSessionState()</code></td><td><code>training_work/session.json</code> varsa parse eder.</td></tr>
+        <tr><td>Karar</td><td><code>training_session.cpp:389–396</code></td><td><code>Run()</code> içi</td><td><code>resuming = eskiKey == yeniKey && completed &lt; total && model.ckpt var && tokenizer var</code>. Uymazsa log: <i>"Previous session does not match this configuration; clearing temp checkpoint"</i>.</td></tr>
+        <tr><td>Devam: tokenizer yükle</td><td><code>training_session.cpp:399</code></td><td><code>BpeTokenizer::Load()</code></td><td><code>training_work/tokenizer/</code></td></tr>
+        <tr><td>Devam: model yükle</td><td><code>training_session.cpp:410</code></td><td><code>Checkpoint::Load()</code></td><td><code>training_work/model.ckpt</code>. <code>SameArchitecture()</code> (satır 104) ile boyutlar doğrulanır.</td></tr>
+        <tr><td>Sıfırdan: temizle</td><td><code>training_session.cpp:324</code></td><td><code>ClearWorkDir()</code></td><td><code>training_work/</code> tamamen silinir.</td></tr>
+    </table>
 
-<h3 id="s4c">4.3 Tokenizer eğitimi (BPE) <span class="tag">sadece sıfırdan başlarken</span></h3>
-<p>Amaç: 222 MB metinden 3072 parçalık bir "alt-kelime sözlüğü" çıkarmak. Model kelimeleri değil bu parçaları görür.</p>
-<table>
-<tr><th>Adım</th><th>Dosya:Satır</th><th>Fonksiyon</th><th>Ne yapar</th></tr>
-<tr><td>Corpus metni</td><td><code>chat_corpus.cpp:330</code></td><td><code>BuildTokenizerCorpus()</code></td><td>Tüm örneklerin system+prompt+response metnini tek string'e birleştirir.</td></tr>
-<tr><td>Giriş</td><td><code>llm/src/tokenizer/bpe_tokenizer.cpp:290</code></td><td><code>BpeTokenizer::Train()</code></td><td>Sözlüğü sıfırlar, <code>BpeTrainer</code>'ı çalıştırır, her merge'i <code>AddMerge()</code> (satır 285) ile kaydeder.</td></tr>
-<tr><td>Kelimeleri say</td><td><code>bpe_tokenizer.cpp:119</code></td><td><code>BpeTrainer::BuildWords()</code></td><td>Metni boşluktan böler. <b>Aynı kelimeyi bir kez tutar, sayısını artırır</b>. 40M kelime → ~1M tekil. Her kelime = <code>▁</code> + karakter id'leri.</td></tr>
-<tr><td>Çift frekansları</td><td><code>bpe_tokenizer.cpp:139</code></td><td><code>InitializePairStats()</code></td><td>Her komşu sembol çifti (a,b) için toplam sayı. Hangi kelimelerde geçtiği de tutulur (<code>pairWords_</code>). Hepsi bir max-heap'e basılır.</td></tr>
-<tr><td>En sık çifti seç</td><td><code>bpe_tokenizer.cpp:153</code></td><td><code>PopBestPair()</code></td><td>Heap'ten al. Sayısı güncel değilse (bayat) at, tekrar al. Eşitlikte küçük id kazanır → deterministik.</td></tr>
-<tr><td>Birleştir</td><td><code>bpe_tokenizer.cpp:174</code></td><td><code>MergeAllOccurrences()</code></td><td>Sadece bu çifti içeren kelimeleri ziyaret eder. <code>RewriteWord()</code> çağırır.</td></tr>
-<tr><td>Kelimeyi yeniden yaz</td><td><code>bpe_tokenizer.cpp:206</code></td><td><code>RewriteWord()</code></td><td>(a,b) → M. <b>Sadece birleşme noktasına komşu çiftlerin</b> sayısı değişir: (x,a) ve (b,y) azalır, (x,M) ve (M,y) artar. Eski algoritma tüm corpus'u tarıyordu; bu yüzden saatler sürüyordu.</td></tr>
-<tr><td>Döngü</td><td><code>bpe_tokenizer.cpp:61</code></td><td><code>BpeTrainer::Run()</code></td><td><code>while (vocab &lt; target)</code>: seç → birleştir → sözlüğe ekle. Her 64 merge'de <code>progress</code> callback → log <i>"Tokenizer vocab 906/3072"</i>.</td></tr>
-<tr><td>Diske yaz</td><td><code>bpe_tokenizer.cpp:448</code></td><td><code>BpeTokenizer::Save()</code></td><td><code>training_work/tokenizer/vocab.txt</code> + <code>merges.txt</code></td></tr>
-</table>
-<div class="box">
-<b>Örnek:</b> corpus <code>"ab ab ab cd"</code>. Başlangıç sembolleri: <code>▁ a b c d</code>. En sık çift (▁,a)=3 ve (a,b)=3, eşit; id'si küçük olan (▁,a) seçilir → yeni sembol <code>▁a</code>. Sonra (▁a,b)=3 → <code>▁ab</code>. Artık "ab" kelimesi tek token.
-</div>
+    <h3 id="s4c">4.3 Tokenizer eğitimi (BPE) <span class="tag">sadece sıfırdan başlarken</span></h3>
+    <p>Amaç: 222 MB metinden 3072 parçalık bir "alt-kelime sözlüğü" çıkarmak. Model kelimeleri değil bu parçaları görür.</p>
+    <table>
+        <tr><th>Adım</th><th>Dosya:Satır</th><th>Fonksiyon</th><th>Ne yapar</th></tr>
+        <tr><td>Corpus metni</td><td><code>chat_corpus.cpp:330</code></td><td><code>BuildTokenizerCorpus()</code></td><td>Tüm örneklerin system+prompt+response metnini tek string'e birleştirir.</td></tr>
+        <tr><td>Giriş</td><td><code>llm/src/tokenizer/bpe_tokenizer.cpp:290</code></td><td><code>BpeTokenizer::Train()</code></td><td>Sözlüğü sıfırlar, <code>BpeTrainer</code>'ı çalıştırır, her merge'i <code>AddMerge()</code> (satır 285) ile kaydeder.</td></tr>
+        <tr><td>Kelimeleri say</td><td><code>bpe_tokenizer.cpp:119</code></td><td><code>BpeTrainer::BuildWords()</code></td><td>Metni boşluktan böler. <b>Aynı kelimeyi bir kez tutar, sayısını artırır</b>. 40M kelime → ~1M tekil. Her kelime = <code>▁</code> + karakter id'leri.</td></tr>
+        <tr><td>Çift frekansları</td><td><code>bpe_tokenizer.cpp:139</code></td><td><code>InitializePairStats()</code></td><td>Her komşu sembol çifti (a,b) için toplam sayı. Hangi kelimelerde geçtiği de tutulur (<code>pairWords_</code>). Hepsi bir max-heap'e basılır.</td></tr>
+        <tr><td>En sık çifti seç</td><td><code>bpe_tokenizer.cpp:153</code></td><td><code>PopBestPair()</code></td><td>Heap'ten al. Sayısı güncel değilse (bayat) at, tekrar al. Eşitlikte küçük id kazanır → deterministik.</td></tr>
+        <tr><td>Birleştir</td><td><code>bpe_tokenizer.cpp:174</code></td><td><code>MergeAllOccurrences()</code></td><td>Sadece bu çifti içeren kelimeleri ziyaret eder. <code>RewriteWord()</code> çağırır.</td></tr>
+        <tr><td>Kelimeyi yeniden yaz</td><td><code>bpe_tokenizer.cpp:206</code></td><td><code>RewriteWord()</code></td><td>(a,b) → M. <b>Sadece birleşme noktasına komşu çiftlerin</b> sayısı değişir: (x,a) ve (b,y) azalır, (x,M) ve (M,y) artar. Eski algoritma tüm corpus'u tarıyordu; bu yüzden saatler sürüyordu.</td></tr>
+        <tr><td>Döngü</td><td><code>bpe_tokenizer.cpp:61</code></td><td><code>BpeTrainer::Run()</code></td><td><code>while (vocab &lt; target)</code>: seç → birleştir → sözlüğe ekle. Her 64 merge'de <code>progress</code> callback → log <i>"Tokenizer vocab 906/3072"</i>.</td></tr>
+        <tr><td>Diske yaz</td><td><code>bpe_tokenizer.cpp:448</code></td><td><code>BpeTokenizer::Save()</code></td><td><code>training_work/tokenizer/vocab.txt</code> + <code>merges.txt</code></td></tr>
+    </table>
+    <div class="box">
+        <b>Örnek:</b> corpus <code>"ab ab ab cd"</code>. Başlangıç sembolleri: <code>▁ a b c d</code>. En sık çift (▁,a)=3 ve (a,b)=3, eşit; id'si küçük olan (▁,a) seçilir → yeni sembol <code>▁a</code>. Sonra (▁a,b)=3 → <code>▁ab</code>. Artık "ab" kelimesi tek token.
+    </div>
 
-<h3 id="s4d">4.4 Modeli oluştur <span class="tag">sadece sıfırdan başlarken</span></h3>
-<table>
-<tr><th>Adım</th><th>Dosya:Satır</th><th>Fonksiyon</th><th>Ne yapar</th></tr>
-<tr><td>Boyutları belirle</td><td><code>training_session.cpp:437–439</code></td><td><code>Run()</code> içi</td><td><code>vocabSize</code> tokenizer'ın gerçek boyutuna eşitlenir. <code>TransformerModel(config)</code> tüm tensörleri ayırır.</td></tr>
-<tr><td>Katmanlar</td><td><code>llm/src/model/transformer.cpp</code></td><td><code>TransformerModel</code> ctor</td><td><code>token_embedding [vocab×hidden]</code>, N × <code>TransformerBlock</code>, <code>final_norm</code>, <code>lm_head [vocab×hidden]</code>, RoPE cache.</td></tr>
-<tr><td>Bir blok</td><td><code>llm/src/model/transformer_block.cpp</code></td><td><code>TransformerBlock</code></td><td><code>attn_norm → MultiHeadAttention → residual → ffn_norm → SwiGluFfn → residual</code></td></tr>
-<tr><td>Rastgele başlat</td><td><code>transformer.cpp:23</code></td><td><code>ResetParameters(rng)</code></td><td>Seed'li <code>mt19937</code>. Aynı seed = aynı başlangıç ağırlıkları.</td></tr>
-<tr><td>Başlatma formülü</td><td><code>llm/src/model/params.cpp:7</code></td><td><code>InitTensorXavier()</code></td><td>Xavier/Glorot uniform. Norm ağırlıkları 1, diğerleri küçük rastgele.</td></tr>
-<tr><td>Adım sayısı</td><td><code>training_session.cpp:329</code></td><td><code>ResolveTrainingSteps()</code></td><td>UI'da 0 ise: <code>clamp(samples×2, 18000, 30000)</code>.</td></tr>
-<tr><td>Öğrenme hızı</td><td><code>training_session.cpp:336</code></td><td><code>ResolveLearningRate()</code></td><td>UI'da 0 ise: 1000+ örnek → 0.002, azsa 0.003.</td></tr>
-</table>
+    <h3 id="s4d">4.4 Modeli oluştur <span class="tag">sadece sıfırdan başlarken</span></h3>
+    <table>
+        <tr><th>Adım</th><th>Dosya:Satır</th><th>Fonksiyon</th><th>Ne yapar</th></tr>
+        <tr><td>Boyutları belirle</td><td><code>training_session.cpp:437–439</code></td><td><code>Run()</code> içi</td><td><code>vocabSize</code> tokenizer'ın gerçek boyutuna eşitlenir. <code>TransformerModel(config)</code> tüm tensörleri ayırır.</td></tr>
+        <tr><td>Katmanlar</td><td><code>llm/src/model/transformer.cpp</code></td><td><code>TransformerModel</code> ctor</td><td><code>token_embedding [vocab×hidden]</code>, N × <code>TransformerBlock</code>, <code>final_norm</code>, <code>lm_head [vocab×hidden]</code>, RoPE cache.</td></tr>
+        <tr><td>Bir blok</td><td><code>llm/src/model/transformer_block.cpp</code></td><td><code>TransformerBlock</code></td><td><code>attn_norm → MultiHeadAttention → residual → ffn_norm → SwiGluFfn → residual</code></td></tr>
+        <tr><td>Rastgele başlat</td><td><code>transformer.cpp:23</code></td><td><code>ResetParameters(rng)</code></td><td>Seed'li <code>mt19937</code>. Aynı seed = aynı başlangıç ağırlıkları.</td></tr>
+        <tr><td>Başlatma formülü</td><td><code>llm/src/model/params.cpp:7</code></td><td><code>InitTensorXavier()</code></td><td>Xavier/Glorot uniform. Norm ağırlıkları 1, diğerleri küçük rastgele.</td></tr>
+        <tr><td>Adım sayısı</td><td><code>training_session.cpp:329</code></td><td><code>ResolveTrainingSteps()</code></td><td>UI'da 0 ise: <code>clamp(samples×2, 18000, 30000)</code>.</td></tr>
+        <tr><td>Öğrenme hızı</td><td><code>training_session.cpp:336</code></td><td><code>ResolveLearningRate()</code></td><td>UI'da 0 ise: 1000+ örnek → 0.002, azsa 0.003.</td></tr>
+    </table>
 
-<h3 id="s4e">4.5 Örnekleri token'a çevir</h3>
-<table>
-<tr><th>Adım</th><th>Dosya:Satır</th><th>Fonksiyon</th><th>Ne yapar</th></tr>
-<tr><td>Tüm örnekler</td><td><code>chat_corpus.cpp:341</code></td><td><code>BuildTrainingBatches()</code></td><td>Her örnek için: metin oluştur → encode → <code>maxSeqLen</code>'e kes. Her 5000 örnekte log <i>"Tokenized 5000/173386"</i>.</td></tr>
-<tr><td>Eğitim metni şablonu</td><td><code>llm/src/training/dialogue_format.cpp:42</code></td><td><code>BuildTrainingSequence()</code></td><td><code>"Niyet: X. Kullanici: &lt;prompt&gt; Asistan: &lt;response&gt;"</code>. Model bu formatı ezberler; çıkarımda aynı şablonun ilk yarısı verilir.</td></tr>
-<tr><td>BOS ekle</td><td><code>bpe_tokenizer.cpp:404</code></td><td><code>EncodeWithSpecialTokens()</code></td><td>Başa <code>&lt;bos&gt;</code> (id 2).</td></tr>
-<tr><td>Metni böl</td><td><code>bpe_tokenizer.cpp:395</code></td><td><code>Encode()</code></td><td>Kelime kelime <code>EncodeWord</code>.</td></tr>
-<tr><td>Kelime → token</td><td><code>bpe_tokenizer.cpp:367</code></td><td><code>EncodeWord()</code></td><td>Önce cache'e bakar (500k kelime). Yoksa <code>▁</code>+karakterler → <code>ApplyBpe</code>.</td></tr>
-<tr><td>Merge kurallarını uygula</td><td><code>bpe_tokenizer.cpp:331</code></td><td><code>ApplyBpe()</code></td><td>Eğitimde öğrenilen merge sırasına göre (<code>mergeRank_</code>) en düşük rank'lı çifti birleştir, birleştirilecek kalmayınca dur.</td></tr>
-</table>
-<p>Sonuç: <code>batches</code> = 173386 adet <code>vector&lt;TokenId&gt;</code>. Her biri bir eğitim örneği. Bellekte tutulur.</p>
+    <h3 id="s4e">4.5 Örnekleri token'a çevir</h3>
+    <table>
+        <tr><th>Adım</th><th>Dosya:Satır</th><th>Fonksiyon</th><th>Ne yapar</th></tr>
+        <tr><td>Tüm örnekler</td><td><code>chat_corpus.cpp:341</code></td><td><code>BuildTrainingBatches()</code></td><td>Her örnek için: metin oluştur → encode → <code>maxSeqLen</code>'e kes. Her 5000 örnekte log <i>"Tokenized 5000/173386"</i>.</td></tr>
+        <tr><td>Eğitim metni şablonu</td><td><code>llm/src/training/dialogue_format.cpp:42</code></td><td><code>BuildTrainingSequence()</code></td><td><code>"Niyet: X. Kullanici: &lt;prompt&gt; Asistan: &lt;response&gt;"</code>. Model bu formatı ezberler; çıkarımda aynı şablonun ilk yarısı verilir.</td></tr>
+        <tr><td>BOS ekle</td><td><code>bpe_tokenizer.cpp:404</code></td><td><code>EncodeWithSpecialTokens()</code></td><td>Başa <code>&lt;bos&gt;</code> (id 2).</td></tr>
+        <tr><td>Metni böl</td><td><code>bpe_tokenizer.cpp:395</code></td><td><code>Encode()</code></td><td>Kelime kelime <code>EncodeWord</code>.</td></tr>
+        <tr><td>Kelime → token</td><td><code>bpe_tokenizer.cpp:367</code></td><td><code>EncodeWord()</code></td><td>Önce cache'e bakar (500k kelime). Yoksa <code>▁</code>+karakterler → <code>ApplyBpe</code>.</td></tr>
+        <tr><td>Merge kurallarını uygula</td><td><code>bpe_tokenizer.cpp:331</code></td><td><code>ApplyBpe()</code></td><td>Eğitimde öğrenilen merge sırasına göre (<code>mergeRank_</code>) en düşük rank'lı çifti birleştir, birleştirilecek kalmayınca dur.</td></tr>
+    </table>
+    <p>Sonuç: <code>batches</code> = 173386 adet <code>vector&lt;TokenId&gt;</code>. Her biri bir eğitim örneği. Bellekte tutulur.</p>
 
-<h3 id="s4f">4.6 Optimizer'ı geri yükle <span class="tag">sadece devam ederken</span></h3>
-<table>
-<tr><th>Adım</th><th>Dosya:Satır</th><th>Fonksiyon</th><th>Ne yapar</th></tr>
-<tr><td>Trainer kur</td><td><code>llm/src/training/trainer.cpp:7</code></td><td><code>Trainer</code> ctor</td><td><code>ParameterList::CollectFromModel</code> (<code>parameter.cpp:19</code>) tüm eğitilebilir tensörlerin listesini çıkarır. Her biri için <code>grad</code> tensörü ayrılır.</td></tr>
-<tr><td>m, v yükle</td><td><code>training_session.cpp:362</code></td><td><code>RestoreOptimizer()</code></td><td><code>training_work/optimizer.bin</code> → <code>AdamW::LoadState</code>. Başarısızsa log yazar, sıfır m/v ile devam eder (eğitim durmaz).</td></tr>
-<tr><td>Dosyayı oku</td><td><code>llm/src/training/adamw.cpp:127</code></td><td><code>AdamW::LoadState()</code></td><td>Header (<code>LLMADAM1</code>, step, tensör sayısı) + her parametre için m ve v. Şekiller uyuşmazsa hata.</td></tr>
-</table>
+    <h3 id="s4f">4.6 Optimizer'ı geri yükle <span class="tag">sadece devam ederken</span></h3>
+    <table>
+        <tr><th>Adım</th><th>Dosya:Satır</th><th>Fonksiyon</th><th>Ne yapar</th></tr>
+        <tr><td>Trainer kur</td><td><code>llm/src/training/trainer.cpp:7</code></td><td><code>Trainer</code> ctor</td><td><code>ParameterList::CollectFromModel</code> (<code>parameter.cpp:19</code>) tüm eğitilebilir tensörlerin listesini çıkarır. Her biri için <code>grad</code> tensörü ayrılır.</td></tr>
+        <tr><td>m, v yükle</td><td><code>training_session.cpp:362</code></td><td><code>RestoreOptimizer()</code></td><td><code>training_work/optimizer.bin</code> → <code>AdamW::LoadState</code>. Başarısızsa log yazar, sıfır m/v ile devam eder (eğitim durmaz).</td></tr>
+        <tr><td>Dosyayı oku</td><td><code>llm/src/training/adamw.cpp:127</code></td><td><code>AdamW::LoadState()</code></td><td>Header (<code>LLMADAM1</code>, step, tensör sayısı) + her parametre için m ve v. Şekiller uyuşmazsa hata.</td></tr>
+    </table>
 
-<h3 id="s4g">4.7 Eğitim döngüsü (bir adım)</h3>
+    <h3 id="s4g">4.7 Eğitim döngüsü (bir adım)</h3>
 <pre><code>// training_session.cpp:484
 for (step = completedSteps; step &lt; totalSteps; ++step) {
   if (stopRequested) { stopped_ = true; break; }               // 485
@@ -221,35 +373,35 @@ for (step = completedSteps; step &lt; totalSteps; ++step) {
   Report(progress);                                            // 508  UI'daki step/loss
   if (completedSteps % 100 == 0) Log("step N/M loss=…");       // 510  log SADECE her 100 adımda
 }</code></pre>
-<table>
-<tr><th>Adım</th><th>Dosya:Satır</th><th>Fonksiyon</th><th>Ne yapar</th></tr>
-<tr><td>Örnek sırası</td><td><code>training_session.cpp:128</code></td><td><code>BatchScheduler::IndexFor()</code></td><td>Epoch 0: sıralı. Sonraki epoch'lar: <code>mt19937(seed ^ epoch)</code> ile karıştırılmış. Deterministik → resume'da aynı sırayı üretir.</td></tr>
-<tr><td>Bir adım</td><td><code>trainer.cpp:13</code></td><td><code>Trainer::TrainStep()</code></td><td>İki satır: <code>RunTrainBackward()</code> (gradyan hesapla) + <code>optimizer_.Step()</code> (ağırlıkları güncelle). Detay Bölüm 5.</td></tr>
-</table>
+    <table>
+        <tr><th>Adım</th><th>Dosya:Satır</th><th>Fonksiyon</th><th>Ne yapar</th></tr>
+        <tr><td>Örnek sırası</td><td><code>training_session.cpp:128</code></td><td><code>BatchScheduler::IndexFor()</code></td><td>Epoch 0: sıralı. Sonraki epoch'lar: <code>mt19937(seed ^ epoch)</code> ile karıştırılmış. Deterministik → resume'da aynı sırayı üretir.</td></tr>
+        <tr><td>Bir adım</td><td><code>trainer.cpp:13</code></td><td><code>Trainer::TrainStep()</code></td><td>İki satır: <code>RunTrainBackward()</code> (gradyan hesapla) + <code>optimizer_.Step()</code> (ağırlıkları güncelle). Detay Bölüm 5.</td></tr>
+    </table>
 
-<h3 id="s4h">4.8 Geçici checkpoint yazma</h3>
-<table>
-<tr><th>Adım</th><th>Dosya:Satır</th><th>Fonksiyon</th><th>Ne yapar</th></tr>
-<tr><td>Üçünü birden</td><td><code>training_session.cpp:166</code></td><td><code>SaveTempCheckpoint()</code></td><td>Sırayla: <code>model.ckpt</code>, <code>optimizer.bin</code>, <code>session.json</code>. Her biri atomik.</td></tr>
-<tr><td>Atomik yazma</td><td><code>training_session.cpp:157</code></td><td><code>SaveAtomically()</code></td><td>Önce <code>dosya.tmp</code>'ye yaz, sonra <code>ReplaceFile()</code> (satır 83) ile üzerine taşı. Yazma ortasında elektrik kesilse eski dosya sağlam kalır.</td></tr>
-<tr><td>Ağırlıklar</td><td><code>llm/src/model/checkpoint/checkpoint.cpp:305</code></td><td><code>Checkpoint::Save()</code></td><td>Header (satır 12 <code>CheckpointHeader</code>) + isimli tensörler (satır 260 <code>WriteModelTensors</code>). FP32.</td></tr>
-<tr><td>AdamW m/v</td><td><code>adamw.cpp:105</code></td><td><code>AdamW::SaveState()</code></td><td>Sadece <b>son</b> m ve v. Boyut = 2 × model.</td></tr>
-<tr><td>İlerleme</td><td><code>training_session.cpp:318</code></td><td><code>SaveSessionState()</code></td><td><code>session.json</code>: session_key, completed_steps, total_steps, last_loss, config.</td></tr>
-</table>
+    <h3 id="s4h">4.8 Geçici checkpoint yazma</h3>
+    <table>
+        <tr><th>Adım</th><th>Dosya:Satır</th><th>Fonksiyon</th><th>Ne yapar</th></tr>
+        <tr><td>Üçünü birden</td><td><code>training_session.cpp:166</code></td><td><code>SaveTempCheckpoint()</code></td><td>Sırayla: <code>model.ckpt</code>, <code>optimizer.bin</code>, <code>session.json</code>. Her biri atomik.</td></tr>
+        <tr><td>Atomik yazma</td><td><code>training_session.cpp:157</code></td><td><code>SaveAtomically()</code></td><td>Önce <code>dosya.tmp</code>'ye yaz, sonra <code>ReplaceFile()</code> (satır 83) ile üzerine taşı. Yazma ortasında elektrik kesilse eski dosya sağlam kalır.</td></tr>
+        <tr><td>Ağırlıklar</td><td><code>llm/src/model/checkpoint/checkpoint.cpp:305</code></td><td><code>Checkpoint::Save()</code></td><td>Header (satır 12 <code>CheckpointHeader</code>) + isimli tensörler (satır 260 <code>WriteModelTensors</code>). FP32.</td></tr>
+        <tr><td>AdamW m/v</td><td><code>adamw.cpp:105</code></td><td><code>AdamW::SaveState()</code></td><td>Sadece <b>son</b> m ve v. Boyut = 2 × model.</td></tr>
+        <tr><td>İlerleme</td><td><code>training_session.cpp:318</code></td><td><code>SaveSessionState()</code></td><td><code>session.json</code>: session_key, completed_steps, total_steps, last_loss, config.</td></tr>
+    </table>
 
-<h3 id="s4i">4.9 Durdurma ve yayınlama</h3>
-<table>
-<tr><th>Adım</th><th>Dosya:Satır</th><th>Fonksiyon</th><th>Ne yapar</th></tr>
-<tr><td>Durduruldu</td><td><code>training_session.cpp:516–526</code></td><td><code>Run()</code> içi</td><td>Son adım kaydedilmemişse kaydet. Log <i>"Stopped at step N; temp checkpoint kept for resume"</i>. <code>training_work/</code> silinmez.</td></tr>
-<tr><td>Tamamlandı</td><td><code>training_session.cpp:531</code></td><td><code>Publish()</code></td><td>1) <code>training_work/model.ckpt</code> → <code>model.ckpt</code> (atomik kopya). 2) INT8'e çevir → <code>model.ckptq</code>. 3) tokenizer → <code>tokenizer_data/</code>. 4) <code>ClearWorkDir</code>.</td></tr>
-<tr><td>INT8 dönüşüm</td><td><code>llm/src/quantization/quant_checkpoint.cpp:529</code></td><td><code>QuantCheckpoint::ConvertFile()</code></td><td>FP32 yükle → her linear ağırlığı <code>QuantizeSymmetric</code> (<code>quantize.cpp:8</code>) → yaz. Boyut ¼.</td></tr>
-<tr><td>Chat'e haber ver</td><td><code>training_service.cpp:216</code></td><td><code>NotifyChatServerReload()</code></td><td><code>POST http://127.0.0.1:8765/api/v1/reload</code></td></tr>
-<tr><td>Chat modeli yeniler</td><td><code>chat_http_server.cpp:189</code> → <code>hybrid_chat_backend.cpp:103</code></td><td><code>HandleReload()</code> → <code>ReloadLocalModel()</code></td><td>Yeni <code>model.ckptq</code> yüklenir. Chat uygulaması kapanmaz.</td></tr>
-</table>
+    <h3 id="s4i">4.9 Durdurma ve yayınlama</h3>
+    <table>
+        <tr><th>Adım</th><th>Dosya:Satır</th><th>Fonksiyon</th><th>Ne yapar</th></tr>
+        <tr><td>Durduruldu</td><td><code>training_session.cpp:516–526</code></td><td><code>Run()</code> içi</td><td>Son adım kaydedilmemişse kaydet. Log <i>"Stopped at step N; temp checkpoint kept for resume"</i>. <code>training_work/</code> silinmez.</td></tr>
+        <tr><td>Tamamlandı</td><td><code>training_session.cpp:531</code></td><td><code>Publish()</code></td><td>1) <code>training_work/model.ckpt</code> → <code>model.ckpt</code> (atomik kopya). 2) INT8'e çevir → <code>model.ckptq</code>. 3) tokenizer → <code>tokenizer_data/</code>. 4) <code>ClearWorkDir</code>.</td></tr>
+        <tr><td>INT8 dönüşüm</td><td><code>llm/src/quantization/quant_checkpoint.cpp:529</code></td><td><code>QuantCheckpoint::ConvertFile()</code></td><td>FP32 yükle → her linear ağırlığı <code>QuantizeSymmetric</code> (<code>quantize.cpp:8</code>) → yaz. Boyut ¼.</td></tr>
+        <tr><td>Chat'e haber ver</td><td><code>training_service.cpp:216</code></td><td><code>NotifyChatServerReload()</code></td><td><code>POST http://127.0.0.1:8765/api/v1/reload</code></td></tr>
+        <tr><td>Chat modeli yeniler</td><td><code>chat_http_server.cpp:189</code> → <code>hybrid_chat_backend.cpp:103</code></td><td><code>HandleReload()</code> → <code>ReloadLocalModel()</code></td><td>Yeni <code>model.ckptq</code> yüklenir. Chat uygulaması kapanmaz.</td></tr>
+    </table>
 
-<!-- ============================================================ -->
-<h2 id="s5">5. Bir eğitim adımının içi: ileri, kayıp, geri, güncelle</h2>
-<p>Dosya: <code>llm/src/training/transformer_train.cpp</code>. Ana fonksiyon <code>RunTrainBackward()</code> satır 390. Tek bir örnek (<code>tokens</code>) alır, <code>loss</code> ve tüm parametrelerin <code>grad</code>'ını doldurur.</p>
+    <!-- ============================================================ -->
+    <h2 id="s5">5. Bir eğitim adımının içi: ileri, kayıp, geri, güncelle</h2>
+    <p>Dosya: <code>llm/src/training/transformer_train.cpp</code>. Ana fonksiyon <code>RunTrainBackward()</code> satır 390. Tek bir örnek (<code>tokens</code>) alır, <code>loss</code> ve tüm parametrelerin <code>grad</code>'ını doldurur.</p>
 
 <pre><code>tokens = [bos, t1, t2, …, tn]           hedef: her pozisyonda bir sonraki token'ı tahmin et
 
@@ -271,89 +423,89 @@ GERİ (backward)  — her katmandan gradyan geriye akar
 
 GÜNCELLE (AdamW)                                        trainer.cpp:19 → adamw.cpp:78</code></pre>
 
-<h3>5.1 İleri geçiş: bir Transformer bloğu</h3>
-<table>
-<tr><th>Alt adım</th><th>Dosya:Satır</th><th>Fonksiyon</th><th>Formül / ne yapar</th></tr>
-<tr><td>Blok</td><td><code>transformer_train.cpp:296</code></td><td><code>ForwardBlock()</code></td><td><code>x → norm → attention → +x → norm → ffn → +residual</code>. Ara sonuçlar <code>BlockTrainCache</code>'e kaydedilir (geri geçişte lazım).</td></tr>
-<tr><td>RMSNorm</td><td><code>llm/src/model/rms_norm.cpp:7</code></td><td><code>RmsNorm()</code></td><td><code>y = x / sqrt(mean(x²)+eps) × w</code></td></tr>
-<tr><td>Attention</td><td><code>transformer_train.cpp:86</code></td><td><code>ForwardAttention()</code></td><td>Q,K,V = x×Wq, x×Wk, x×Wv (satır 97–99). RoPE (satır 104–105). Skor = Q·K/√d, sadece geçmişe bak (causal, satır 118), softmax (satır 127–140), çıktı = Σ p×V (satır 142–148), Wo ile projeksiyon (satır 152).</td></tr>
-<tr><td>RoPE</td><td><code>llm/src/model/rope.cpp:35</code></td><td><code>ApplyRope()</code></td><td>Q ve K'ya pozisyona bağlı rotasyon. Cos/Sin tablosu <code>RopeCache::Build</code> (satır 7).</td></tr>
-<tr><td>GQA</td><td><code>transformer_train.cpp:92</code></td><td><code>headsPerKv</code></td><td><code>numHeads / numKvHeads</code> query başı bir K/V başını paylaşır. Bellek tasarrufu.</td></tr>
-<tr><td>SwiGLU FFN</td><td><code>transformer_train.cpp:320–340</code></td><td><code>ForwardBlock()</code> içi</td><td><code>gate = x×Wg; up = x×Wu; hidden = silu(gate) ⊙ up; out = hidden×Wd</code>. <code>Silu</code>: <code>ops.cpp:183</code>.</td></tr>
-<tr><td>Lineer katman</td><td><code>llm/src/model/linear.cpp:22</code></td><td><code>Linear::Forward()</code></td><td><code>y = x × Wᵀ</code>. Bias yok.</td></tr>
-<tr><td>Matris çarpımı</td><td><code>llm/src/tensor/ops.cpp:62</code></td><td><code>MatMul()</code></td><td>Üçlü döngü. CPU'daki asıl zamanın gittiği yer.</td></tr>
-</table>
+    <h3>5.1 İleri geçiş: bir Transformer bloğu</h3>
+    <table>
+        <tr><th>Alt adım</th><th>Dosya:Satır</th><th>Fonksiyon</th><th>Formül / ne yapar</th></tr>
+        <tr><td>Blok</td><td><code>transformer_train.cpp:296</code></td><td><code>ForwardBlock()</code></td><td><code>x → norm → attention → +x → norm → ffn → +residual</code>. Ara sonuçlar <code>BlockTrainCache</code>'e kaydedilir (geri geçişte lazım).</td></tr>
+        <tr><td>RMSNorm</td><td><code>llm/src/model/rms_norm.cpp:7</code></td><td><code>RmsNorm()</code></td><td><code>y = x / sqrt(mean(x²)+eps) × w</code></td></tr>
+        <tr><td>Attention</td><td><code>transformer_train.cpp:86</code></td><td><code>ForwardAttention()</code></td><td>Q,K,V = x×Wq, x×Wk, x×Wv (satır 97–99). RoPE (satır 104–105). Skor = Q·K/√d, sadece geçmişe bak (causal, satır 118), softmax (satır 127–140), çıktı = Σ p×V (satır 142–148), Wo ile projeksiyon (satır 152).</td></tr>
+        <tr><td>RoPE</td><td><code>llm/src/model/rope.cpp:35</code></td><td><code>ApplyRope()</code></td><td>Q ve K'ya pozisyona bağlı rotasyon. Cos/Sin tablosu <code>RopeCache::Build</code> (satır 7).</td></tr>
+        <tr><td>GQA</td><td><code>transformer_train.cpp:92</code></td><td><code>headsPerKv</code></td><td><code>numHeads / numKvHeads</code> query başı bir K/V başını paylaşır. Bellek tasarrufu.</td></tr>
+        <tr><td>SwiGLU FFN</td><td><code>transformer_train.cpp:320–340</code></td><td><code>ForwardBlock()</code> içi</td><td><code>gate = x×Wg; up = x×Wu; hidden = silu(gate) ⊙ up; out = hidden×Wd</code>. <code>Silu</code>: <code>ops.cpp:183</code>.</td></tr>
+        <tr><td>Lineer katman</td><td><code>llm/src/model/linear.cpp:22</code></td><td><code>Linear::Forward()</code></td><td><code>y = x × Wᵀ</code>. Bias yok.</td></tr>
+        <tr><td>Matris çarpımı</td><td><code>llm/src/tensor/ops.cpp:62</code></td><td><code>MatMul()</code></td><td>Üçlü döngü. CPU'daki asıl zamanın gittiği yer.</td></tr>
+    </table>
 
-<h3>5.2 Kayıp</h3>
-<table>
-<tr><th>Alt adım</th><th>Dosya:Satır</th><th>Ne yapar</th></tr>
-<tr><td>Softmax + log</td><td><code>loss.cpp:29–48</code></td><td>Her satır için: max çıkar (sayısal kararlılık), exp, normalize, <code>-log(p[hedef])</code> topla.</td></tr>
-<tr><td>Gradyan</td><td><code>loss.cpp:50–53</code></td><td><code>gradLogits = softmax − onehot(hedef)</code>, satır sayısına böl. Bu tek satır tüm geri geçişi başlatır.</td></tr>
-<tr><td>Ortalama</td><td><code>loss.cpp:56</code></td><td><code>loss / seqLen</code>. UI'daki "loss" sayısı bu. Rastgele modelde ≈ ln(3072) ≈ 8.0. Düştükçe iyi.</td></tr>
-</table>
+    <h3>5.2 Kayıp</h3>
+    <table>
+        <tr><th>Alt adım</th><th>Dosya:Satır</th><th>Ne yapar</th></tr>
+        <tr><td>Softmax + log</td><td><code>loss.cpp:29–48</code></td><td>Her satır için: max çıkar (sayısal kararlılık), exp, normalize, <code>-log(p[hedef])</code> topla.</td></tr>
+        <tr><td>Gradyan</td><td><code>loss.cpp:50–53</code></td><td><code>gradLogits = softmax − onehot(hedef)</code>, satır sayısına böl. Bu tek satır tüm geri geçişi başlatır.</td></tr>
+        <tr><td>Ortalama</td><td><code>loss.cpp:56</code></td><td><code>loss / seqLen</code>. UI'daki "loss" sayısı bu. Rastgele modelde ≈ ln(3072) ≈ 8.0. Düştükçe iyi.</td></tr>
+    </table>
 
-<h3>5.3 Geri geçiş (autograd)</h3>
-<p>Otomatik türev yok; her işlemin türevi elle yazılmış. Zincir kuralı: çıkış gradyanı → giriş gradyanı + ağırlık gradyanı.</p>
-<table>
-<tr><th>İleri işlem</th><th>Geri fonksiyonu</th><th>Dosya:Satır</th><th>Ne üretir</th></tr>
-<tr><td><code>y = x×Wᵀ</code></td><td><code>LinearBackward()</code></td><td><code>llm/src/training/autograd.cpp:130</code></td><td><code>gradX = gradY×W</code>, <code>gradW = gradYᵀ×x</code></td></tr>
-<tr><td>RMSNorm</td><td><code>RmsNormBackward()</code></td><td><code>autograd.cpp:84</code></td><td>gradX ve gradW</td></tr>
-<tr><td><code>a ⊙ b</code></td><td><code>MulBackward()</code></td><td><code>autograd.cpp:56</code></td><td><code>gradA = gradOut⊙b</code>, <code>gradB = gradOut⊙a</code></td></tr>
-<tr><td>silu</td><td><code>SiluBackward()</code></td><td><code>autograd.cpp:72</code></td><td><code>σ(x)(1 + x(1−σ(x)))</code></td></tr>
-<tr><td>RoPE</td><td><code>ApplyRopeBackward()</code></td><td><code>transformer_train.cpp:27</code></td><td>Ters rotasyon</td></tr>
-<tr><td>Attention</td><td><code>BackwardAttention()</code></td><td><code>transformer_train.cpp:156</code></td><td>Wo geri (168) → softmax geri (184–204) → gradQ, gradK, gradV (205–214) → RoPE geri (220) → Wq, Wk, Wv geri (232–237)</td></tr>
-<tr><td>FFN</td><td><code>BackwardFfn()</code></td><td><code>transformer_train.cpp:251</code></td><td>Wd geri → Mul geri → Silu geri → Wg, Wu geri</td></tr>
-<tr><td>Blok</td><td><code>BackwardBlock()</code></td><td><code>transformer_train.cpp:343</code></td><td>FFN → ffn_norm → attention → attn_norm. Residual bağlantılar gradyanı toplar (<code>Accumulate</code>).</td></tr>
-<tr><td>Parametreye yaz</td><td><code>AccumulateParameterGrad()</code></td><td><code>transformer_train.cpp:19</code></td><td>Hesaplanan ağırlık gradyanını <code>ParameterList</code> içindeki ilgili <code>grad</code> tensörüne ekler.</td></tr>
-</table>
+    <h3>5.3 Geri geçiş (autograd)</h3>
+    <p>Otomatik türev yok; her işlemin türevi elle yazılmış. Zincir kuralı: çıkış gradyanı → giriş gradyanı + ağırlık gradyanı.</p>
+    <table>
+        <tr><th>İleri işlem</th><th>Geri fonksiyonu</th><th>Dosya:Satır</th><th>Ne üretir</th></tr>
+        <tr><td><code>y = x×Wᵀ</code></td><td><code>LinearBackward()</code></td><td><code>llm/src/training/autograd.cpp:130</code></td><td><code>gradX = gradY×W</code>, <code>gradW = gradYᵀ×x</code></td></tr>
+        <tr><td>RMSNorm</td><td><code>RmsNormBackward()</code></td><td><code>autograd.cpp:84</code></td><td>gradX ve gradW</td></tr>
+        <tr><td><code>a ⊙ b</code></td><td><code>MulBackward()</code></td><td><code>autograd.cpp:56</code></td><td><code>gradA = gradOut⊙b</code>, <code>gradB = gradOut⊙a</code></td></tr>
+        <tr><td>silu</td><td><code>SiluBackward()</code></td><td><code>autograd.cpp:72</code></td><td><code>σ(x)(1 + x(1−σ(x)))</code></td></tr>
+        <tr><td>RoPE</td><td><code>ApplyRopeBackward()</code></td><td><code>transformer_train.cpp:27</code></td><td>Ters rotasyon</td></tr>
+        <tr><td>Attention</td><td><code>BackwardAttention()</code></td><td><code>transformer_train.cpp:156</code></td><td>Wo geri (168) → softmax geri (184–204) → gradQ, gradK, gradV (205–214) → RoPE geri (220) → Wq, Wk, Wv geri (232–237)</td></tr>
+        <tr><td>FFN</td><td><code>BackwardFfn()</code></td><td><code>transformer_train.cpp:251</code></td><td>Wd geri → Mul geri → Silu geri → Wg, Wu geri</td></tr>
+        <tr><td>Blok</td><td><code>BackwardBlock()</code></td><td><code>transformer_train.cpp:343</code></td><td>FFN → ffn_norm → attention → attn_norm. Residual bağlantılar gradyanı toplar (<code>Accumulate</code>).</td></tr>
+        <tr><td>Parametreye yaz</td><td><code>AccumulateParameterGrad()</code></td><td><code>transformer_train.cpp:19</code></td><td>Hesaplanan ağırlık gradyanını <code>ParameterList</code> içindeki ilgili <code>grad</code> tensörüne ekler.</td></tr>
+    </table>
 
-<h3>5.4 Güncelleme</h3>
-<table>
-<tr><th>Alt adım</th><th>Dosya:Satır</th><th>Formül</th></tr>
-<tr><td>Momentleri hazırla</td><td><code>adamw.cpp:66</code> <code>EnsureMoments()</code></td><td>İlk adımda her parametre için sıfır m, v ayır.</td></tr>
-<tr><td>Bias düzeltme</td><td><code>adamw.cpp:82–84</code></td><td><code>stepSize = lr × √(1−β2ᵗ) / (1−β1ᵗ)</code></td></tr>
-<tr><td>m güncelle</td><td><code>adamw.cpp:93</code></td><td><code>m = 0.9·m + 0.1·g</code></td></tr>
-<tr><td>v güncelle</td><td><code>adamw.cpp:94</code></td><td><code>v = 0.999·v + 0.001·g²</code></td></tr>
-<tr><td>Ağırlığı değiştir</td><td><code>adamw.cpp:96–97</code></td><td><code>w −= stepSize × m / (√v + ε)</code></td></tr>
-<tr><td>Weight decay</td><td><code>adamw.cpp:98</code></td><td><code>w −= lr × 0.01 × w</code></td></tr>
-</table>
+    <h3>5.4 Güncelleme</h3>
+    <table>
+        <tr><th>Alt adım</th><th>Dosya:Satır</th><th>Formül</th></tr>
+        <tr><td>Momentleri hazırla</td><td><code>adamw.cpp:66</code> <code>EnsureMoments()</code></td><td>İlk adımda her parametre için sıfır m, v ayır.</td></tr>
+        <tr><td>Bias düzeltme</td><td><code>adamw.cpp:82–84</code></td><td><code>stepSize = lr × √(1−β2ᵗ) / (1−β1ᵗ)</code></td></tr>
+        <tr><td>m güncelle</td><td><code>adamw.cpp:93</code></td><td><code>m = 0.9·m + 0.1·g</code></td></tr>
+        <tr><td>v güncelle</td><td><code>adamw.cpp:94</code></td><td><code>v = 0.999·v + 0.001·g²</code></td></tr>
+        <tr><td>Ağırlığı değiştir</td><td><code>adamw.cpp:96–97</code></td><td><code>w −= stepSize × m / (√v + ε)</code></td></tr>
+        <tr><td>Weight decay</td><td><code>adamw.cpp:98</code></td><td><code>w −= lr × 0.01 × w</code></td></tr>
+    </table>
 
-<!-- ============================================================ -->
-<h2 id="s6">6. AdamW: m ve v nedir, nerede tutulur</h2>
-<div class="box">
-<p><b>Her ağırlık için iki ek sayı:</b></p>
-<ul>
-  <li><b>m</b> (birinci moment): son gradyanların ağırlıklı ortalaması. "Bu ağırlık genelde hangi yöne gidiyor?" Gürültüyü süzer.</li>
-  <li><b>v</b> (ikinci moment): gradyan karelerinin ortalaması. "Bu ağırlık ne kadar oynak?" Adım boyunu frenler.</li>
-</ul>
-<p>217M parametre → 217M m + 217M v. Bu yüzden optimizer state = 2 × model boyutu. Adım sayısıyla ilgisi yok; parametre sayısıyla var.</p>
-</div>
-<table>
-<tr><th>Nerede</th><th>Ne zaman</th><th>Kod</th></tr>
-<tr><td>RAM: <code>AdamW::moment1_, moment2_</code></td><td>Eğitim boyunca</td><td><code>llm/include/llm/training/adamw.hpp</code></td></tr>
-<tr><td>Disk: <code>training_work/optimizer.bin</code></td><td>Her checkpoint'te üzerine yazılır (tek kopya, son adım)</td><td><code>adamw.cpp:105 SaveState</code></td></tr>
-<tr><td>Geri yükleme</td><td>Resume'da <code>Trainer</code> kurulduktan hemen sonra</td><td><code>training_session.cpp:362 RestoreOptimizer</code></td></tr>
-<tr><td>Silinme</td><td>Publish'te (<code>ClearWorkDir</code>)</td><td><code>training_session.cpp:560</code></td></tr>
-</table>
-<p>Eğitim kesilip devam ederken m/v yüklenmezse: ağırlıklar aynı kalır ama optimizer birkaç yüz adım "kör" yürür, loss geçici sıçrar. Bu yüzden <code>optimizer.bin</code> saklanır.</p>
+    <!-- ============================================================ -->
+    <h2 id="s6">6. AdamW: m ve v nedir, nerede tutulur</h2>
+    <div class="box">
+        <p><b>Her ağırlık için iki ek sayı:</b></p>
+        <ul>
+            <li><b>m</b> (birinci moment): son gradyanların ağırlıklı ortalaması. "Bu ağırlık genelde hangi yöne gidiyor?" Gürültüyü süzer.</li>
+            <li><b>v</b> (ikinci moment): gradyan karelerinin ortalaması. "Bu ağırlık ne kadar oynak?" Adım boyunu frenler.</li>
+        </ul>
+        <p>217M parametre → 217M m + 217M v. Bu yüzden optimizer state = 2 × model boyutu. Adım sayısıyla ilgisi yok; parametre sayısıyla var.</p>
+    </div>
+    <table>
+        <tr><th>Nerede</th><th>Ne zaman</th><th>Kod</th></tr>
+        <tr><td>RAM: <code>AdamW::moment1_, moment2_</code></td><td>Eğitim boyunca</td><td><code>llm/include/llm/training/adamw.hpp</code></td></tr>
+        <tr><td>Disk: <code>training_work/optimizer.bin</code></td><td>Her checkpoint'te üzerine yazılır (tek kopya, son adım)</td><td><code>adamw.cpp:105 SaveState</code></td></tr>
+        <tr><td>Geri yükleme</td><td>Resume'da <code>Trainer</code> kurulduktan hemen sonra</td><td><code>training_session.cpp:362 RestoreOptimizer</code></td></tr>
+        <tr><td>Silinme</td><td>Publish'te (<code>ClearWorkDir</code>)</td><td><code>training_session.cpp:560</code></td></tr>
+    </table>
+    <p>Eğitim kesilip devam ederken m/v yüklenmezse: ağırlıklar aynı kalır ama optimizer birkaç yüz adım "kör" yürür, loss geçici sıçrar. Bu yüzden <code>optimizer.bin</code> saklanır.</p>
 
-<!-- ============================================================ -->
-<h2 id="s7">7. Diskteki dosyalar ve formatları</h2>
-<table>
-<tr><th>Dosya</th><th>İçerik</th><th>Yazan</th><th>Okuyan</th></tr>
-<tr><td><code>model.ckpt</code></td><td>Header (<code>LLMCKPT1</code>, mimari boyutları) + isimli FP32 tensörler. <b>Sadece ağırlıklar.</b></td><td><code>checkpoint.cpp:305 Save</code></td><td><code>checkpoint.cpp:323 Load</code></td></tr>
-<tr><td><code>model.ckptq</code></td><td>Aynı yapı, linear ağırlıklar INT8 + ölçek. Chat sunucusu bunu kullanır.</td><td><code>quant_checkpoint.cpp:394 Save</code></td><td><code>quant_checkpoint.cpp:466 LoadRuntime</code></td></tr>
-<tr><td><code>tokenizer_data/vocab.txt</code></td><td>id → token, satır sırası id'dir.</td><td><code>vocabulary.cpp Save</code></td><td><code>Vocabulary::Load</code></td></tr>
-<tr><td><code>tokenizer_data/merges.txt</code></td><td><code>sol\tsağ</code> satırları, sıra = öncelik.</td><td><code>bpe_tokenizer.cpp:448</code></td><td><code>bpe_tokenizer.cpp:474</code></td></tr>
-<tr><td><code>training_work/model.ckpt</code></td><td>Geçici ağırlıklar (son checkpoint).</td><td><code>SaveTempCheckpoint</code></td><td>Resume</td></tr>
-<tr><td><code>training_work/optimizer.bin</code></td><td>Header (<code>LLMADAM1</code>, step, tensör sayısı) + m,v.</td><td><code>adamw.cpp:105</code></td><td><code>adamw.cpp:127</code></td></tr>
-<tr><td><code>training_work/session.json</code></td><td>session_key, completed_steps, total_steps, last_loss, sample_count, config.</td><td><code>training_session.cpp:275 SerializeSessionState</code></td><td><code>:282 ParseSessionState</code></td></tr>
-<tr><td><code>training_work/tokenizer/</code></td><td>Bu oturumun tokenizer'ı.</td><td>4.3</td><td>4.2</td></tr>
-<tr><td><code>data/corpus/*.jsonl</code></td><td>Eğitim verisi. İlk <code>#</code> satırı UI'da açıklama olur.</td><td><code>scripts/download_*.py</code></td><td><code>chat_corpus.cpp:52</code></td></tr>
-</table>
+    <!-- ============================================================ -->
+    <h2 id="s7">7. Diskteki dosyalar ve formatları</h2>
+    <table>
+        <tr><th>Dosya</th><th>İçerik</th><th>Yazan</th><th>Okuyan</th></tr>
+        <tr><td><code>model.ckpt</code></td><td>Header (<code>LLMCKPT1</code>, mimari boyutları) + isimli FP32 tensörler. <b>Sadece ağırlıklar.</b></td><td><code>checkpoint.cpp:305 Save</code></td><td><code>checkpoint.cpp:323 Load</code></td></tr>
+        <tr><td><code>model.ckptq</code></td><td>Aynı yapı, linear ağırlıklar INT8 + ölçek. Chat sunucusu bunu kullanır.</td><td><code>quant_checkpoint.cpp:394 Save</code></td><td><code>quant_checkpoint.cpp:466 LoadRuntime</code></td></tr>
+        <tr><td><code>tokenizer_data/vocab.txt</code></td><td>id → token, satır sırası id'dir.</td><td><code>vocabulary.cpp Save</code></td><td><code>Vocabulary::Load</code></td></tr>
+        <tr><td><code>tokenizer_data/merges.txt</code></td><td><code>sol\tsağ</code> satırları, sıra = öncelik.</td><td><code>bpe_tokenizer.cpp:448</code></td><td><code>bpe_tokenizer.cpp:474</code></td></tr>
+        <tr><td><code>training_work/model.ckpt</code></td><td>Geçici ağırlıklar (son checkpoint).</td><td><code>SaveTempCheckpoint</code></td><td>Resume</td></tr>
+        <tr><td><code>training_work/optimizer.bin</code></td><td>Header (<code>LLMADAM1</code>, step, tensör sayısı) + m,v.</td><td><code>adamw.cpp:105</code></td><td><code>adamw.cpp:127</code></td></tr>
+        <tr><td><code>training_work/session.json</code></td><td>session_key, completed_steps, total_steps, last_loss, sample_count, config.</td><td><code>training_session.cpp:275 SerializeSessionState</code></td><td><code>:282 ParseSessionState</code></td></tr>
+        <tr><td><code>training_work/tokenizer/</code></td><td>Bu oturumun tokenizer'ı.</td><td>4.3</td><td>4.2</td></tr>
+        <tr><td><code>data/corpus/*.jsonl</code></td><td>Eğitim verisi. İlk <code>#</code> satırı UI'da açıklama olur.</td><td><code>scripts/download_*.py</code></td><td><code>chat_corpus.cpp:52</code></td></tr>
+    </table>
 
-<!-- ============================================================ -->
-<h2 id="s8">8. Sohbet (çıkarım) akışı: mesaj → cevap</h2>
+    <!-- ============================================================ -->
+    <h2 id="s8">8. Sohbet (çıkarım) akışı: mesaj → cevap</h2>
 <pre><code>chat_app  ──POST /api/v1/chat──▶  chat_http_server.cpp:211
                                     │
                                     ▼
@@ -378,118 +530,118 @@ GÜNCELLE (AdamW)                                        trainer.cpp:19 → adam
      InferenceEngine::Prefill / Decode       Sampler::Sample
      inference_engine.cpp:75 / :107          sampling/sampler.cpp:148
      KV cache ile tek token ileri geçiş      greedy / temperature / top-k / top-p</code></pre>
-<table>
-<tr><th>Adım</th><th>Dosya:Satır</th><th>Ne yapar</th></tr>
-<tr><td>HTTP giriş</td><td><code>chat_http_server.cpp:211</code></td><td>JSON'dan prompt, temperature, maxTokens okur.</td></tr>
-<tr><td>Backend seçimi</td><td><code>hybrid_chat_backend.cpp:42</code></td><td><code>activeBackend</code>'e göre yerel model veya Ollama/OpenAI.</td></tr>
-<tr><td>Prompt şablonu</td><td><code>local_chat_backend.cpp:44</code></td><td>Eğitimdeki şablonun ilk yarısı: <code>"Niyet: X. Kullanici: … Asistan:"</code>. Model devamını üretir.</td></tr>
-<tr><td>Prefill</td><td><code>inference_engine.cpp:75</code></td><td>Prompt'un tüm token'larını bir kerede işler, K/V'yi cache'e yazar (<code>attention.cpp:103 ForwardWithCache</code>).</td></tr>
-<tr><td>Decode</td><td><code>inference_engine.cpp:107</code></td><td>Tek token ileri geçiş. Geçmiş K/V cache'ten okunur → hızlı.</td></tr>
-<tr><td>Örnekleme</td><td><code>sampler.cpp:148</code></td><td>Sıcaklık (51), top-k (61), top-p (78), dağılımdan çek (116). Greedy ise argmax (133).</td></tr>
-<tr><td>Güven eşiği</td><td><code>generator.cpp:27</code></td><td>İlk token olasılığı düşükse "bilmiyorum" cevabı (<code>local_chat_backend.cpp:50</code>).</td></tr>
-<tr><td>Token → metin</td><td><code>bpe_tokenizer.cpp:421</code></td><td><code>Decode()</code>. <code>▁</code> ile başlayan token → boşluk + kelime.</td></tr>
-</table>
+    <table>
+        <tr><th>Adım</th><th>Dosya:Satır</th><th>Ne yapar</th></tr>
+        <tr><td>HTTP giriş</td><td><code>chat_http_server.cpp:211</code></td><td>JSON'dan prompt, temperature, maxTokens okur.</td></tr>
+        <tr><td>Backend seçimi</td><td><code>hybrid_chat_backend.cpp:42</code></td><td><code>activeBackend</code>'e göre yerel model veya Ollama/OpenAI.</td></tr>
+        <tr><td>Prompt şablonu</td><td><code>local_chat_backend.cpp:44</code></td><td>Eğitimdeki şablonun ilk yarısı: <code>"Niyet: X. Kullanici: … Asistan:"</code>. Model devamını üretir.</td></tr>
+        <tr><td>Prefill</td><td><code>inference_engine.cpp:75</code></td><td>Prompt'un tüm token'larını bir kerede işler, K/V'yi cache'e yazar (<code>attention.cpp:103 ForwardWithCache</code>).</td></tr>
+        <tr><td>Decode</td><td><code>inference_engine.cpp:107</code></td><td>Tek token ileri geçiş. Geçmiş K/V cache'ten okunur → hızlı.</td></tr>
+        <tr><td>Örnekleme</td><td><code>sampler.cpp:148</code></td><td>Sıcaklık (51), top-k (61), top-p (78), dağılımdan çek (116). Greedy ise argmax (133).</td></tr>
+        <tr><td>Güven eşiği</td><td><code>generator.cpp:27</code></td><td>İlk token olasılığı düşükse "bilmiyorum" cevabı (<code>local_chat_backend.cpp:50</code>).</td></tr>
+        <tr><td>Token → metin</td><td><code>bpe_tokenizer.cpp:421</code></td><td><code>Decode()</code>. <code>▁</code> ile başlayan token → boşluk + kelime.</td></tr>
+    </table>
 
-<!-- ============================================================ -->
-<h2 id="s9">9. Trainer web arayüzü (trainer_web/app.js)</h2>
-<table>
-<tr><th>UI parçası</th><th>Fonksiyon (satır)</th><th>Konuştuğu endpoint</th></tr>
-<tr><td>Dil / tema</td><td><code>applyI18n (108)</code>, <code>applyTheme (119)</code></td><td>—</td></tr>
-<tr><td>Veri seti listesi</td><td><code>loadDatasets (262)</code>, <code>renderDatasets (231)</code></td><td><code>GET /api/v1/train/datasets</code></td></tr>
-<tr><td>Preset menüsü</td><td><code>renderPresets (197)</code>, <code>applyPreset (221)</code></td><td><code>GET /api/v1/train/presets</code></td></tr>
-<tr><td>Parametre tahmini</td><td><code>estimateParams (147)</code>, <code>updateEstimate (182)</code></td><td>— (tarayıcıda hesap)</td></tr>
-<tr><td>Başlat</td><td><code>startTraining (350)</code></td><td><code>POST /api/v1/train/start</code></td></tr>
-<tr><td>Durum, ilerleme, depolama</td><td><code>pollStatus (322)</code>, <code>renderStatus (276)</code></td><td><code>GET /api/v1/train/status</code> (1 s)</td></tr>
-<tr><td>Loglar</td><td><code>pollLogs (334)</code></td><td><code>GET /api/v1/train/logs?since=N</code> (1 s)</td></tr>
-<tr><td>Devam et / temizle kartı</td><td><code>renderStatus</code> içinde <code>pending_session</code></td><td><code>POST /start</code> (aynı config) / <code>POST /session/clear</code></td></tr>
-<tr><td>Config farklıysa uyar</td><td><code>configsMatch (272)</code></td><td>—</td></tr>
-<tr><td>Veri seti indir</td><td><code>bindEvents (364)</code></td><td><code>POST /api/v1/train/download</code> → <code>scripts/download_code_dataset.py</code></td></tr>
-</table>
+    <!-- ============================================================ -->
+    <h2 id="s9">9. Trainer web arayüzü (trainer_web/app.js)</h2>
+    <table>
+        <tr><th>UI parçası</th><th>Fonksiyon (satır)</th><th>Konuştuğu endpoint</th></tr>
+        <tr><td>Dil / tema</td><td><code>applyI18n (108)</code>, <code>applyTheme (119)</code></td><td>—</td></tr>
+        <tr><td>Veri seti listesi</td><td><code>loadDatasets (262)</code>, <code>renderDatasets (231)</code></td><td><code>GET /api/v1/train/datasets</code></td></tr>
+        <tr><td>Preset menüsü</td><td><code>renderPresets (197)</code>, <code>applyPreset (221)</code></td><td><code>GET /api/v1/train/presets</code></td></tr>
+        <tr><td>Parametre tahmini</td><td><code>estimateParams (147)</code>, <code>updateEstimate (182)</code></td><td>— (tarayıcıda hesap)</td></tr>
+        <tr><td>Başlat</td><td><code>startTraining (350)</code></td><td><code>POST /api/v1/train/start</code></td></tr>
+        <tr><td>Durum, ilerleme, depolama</td><td><code>pollStatus (322)</code>, <code>renderStatus (276)</code></td><td><code>GET /api/v1/train/status</code> (1 s)</td></tr>
+        <tr><td>Loglar</td><td><code>pollLogs (334)</code></td><td><code>GET /api/v1/train/logs?since=N</code> (1 s)</td></tr>
+        <tr><td>Devam et / temizle kartı</td><td><code>renderStatus</code> içinde <code>pending_session</code></td><td><code>POST /start</code> (aynı config) / <code>POST /session/clear</code></td></tr>
+        <tr><td>Config farklıysa uyar</td><td><code>configsMatch (272)</code></td><td>—</td></tr>
+        <tr><td>Veri seti indir</td><td><code>bindEvents (364)</code></td><td><code>POST /api/v1/train/download</code> → <code>scripts/download_code_dataset.py</code></td></tr>
+    </table>
 
-<!-- ============================================================ -->
-<h2 id="s10">10. HTTP endpoint listesi</h2>
-<h3>Trainer :8766 — <code>llm/src/server/training_http_server.cpp</code></h3>
-<table>
-<tr><th>Endpoint</th><th>Satır</th><th>Servis fonksiyonu</th></tr>
-<tr><td><code>GET /api/v1/train/datasets</code></td><td>153</td><td><code>TrainingService::ListDatasets (training_service.cpp:255)</code></td></tr>
-<tr><td><code>GET /api/v1/train/presets</code></td><td>157</td><td><code>model_manager.hpp</code> preset tablosu</td></tr>
-<tr><td><code>GET /api/v1/train/status</code></td><td>161</td><td><code>GetStatus (228)</code> + <code>GetStorage (278)</code> + <code>PendingSession (294)</code></td></tr>
-<tr><td><code>GET /api/v1/train/logs?since=</code></td><td>165</td><td><code>GetLogs (241)</code></td></tr>
-<tr><td><code>POST /api/v1/train/start</code></td><td>177</td><td><code>Start (141)</code></td></tr>
-<tr><td><code>POST /api/v1/train/stop</code></td><td>187</td><td><code>RequestStop (164)</code> — bayrak kaldırır, döngü bir sonraki adımda görür</td></tr>
-<tr><td><code>POST /api/v1/train/session/clear</code></td><td>192</td><td><code>ClearPendingSession (303)</code></td></tr>
-<tr><td><code>POST /api/v1/train/download</code></td><td>196</td><td><code>StartDownload (312)</code> → Python script, çıktısı loga akar</td></tr>
-</table>
-<h3>Chat :8765 — <code>llm/src/server/chat_http_server.cpp</code></h3>
-<table>
-<tr><th>Endpoint</th><th>Satır</th><th>Ne yapar</th></tr>
-<tr><td><code>GET /api/v1/health</code></td><td>138</td><td>Launcher bunu bekler.</td></tr>
-<tr><td><code>GET/POST /api/v1/config</code></td><td>144 / 153</td><td>Aktif backend, model adı.</td></tr>
-<tr><td><code>POST /api/v1/reload</code></td><td>189</td><td>Yeni <code>model.ckptq</code>'yu yükle. Trainer publish sonrası çağırır.</td></tr>
-<tr><td><code>POST /api/v1/reset</code></td><td>200</td><td>KV cache sıfırla.</td></tr>
-<tr><td><code>POST /api/v1/chat</code></td><td>211</td><td>Bölüm 8.</td></tr>
-</table>
+    <!-- ============================================================ -->
+    <h2 id="s10">10. HTTP endpoint listesi</h2>
+    <h3>Trainer :8766 — <code>llm/src/server/training_http_server.cpp</code></h3>
+    <table>
+        <tr><th>Endpoint</th><th>Satır</th><th>Servis fonksiyonu</th></tr>
+        <tr><td><code>GET /api/v1/train/datasets</code></td><td>153</td><td><code>TrainingService::ListDatasets (training_service.cpp:255)</code></td></tr>
+        <tr><td><code>GET /api/v1/train/presets</code></td><td>157</td><td><code>model_manager.hpp</code> preset tablosu</td></tr>
+        <tr><td><code>GET /api/v1/train/status</code></td><td>161</td><td><code>GetStatus (228)</code> + <code>GetStorage (278)</code> + <code>PendingSession (294)</code></td></tr>
+        <tr><td><code>GET /api/v1/train/logs?since=</code></td><td>165</td><td><code>GetLogs (241)</code></td></tr>
+        <tr><td><code>POST /api/v1/train/start</code></td><td>177</td><td><code>Start (141)</code></td></tr>
+        <tr><td><code>POST /api/v1/train/stop</code></td><td>187</td><td><code>RequestStop (164)</code> — bayrak kaldırır, döngü bir sonraki adımda görür</td></tr>
+        <tr><td><code>POST /api/v1/train/session/clear</code></td><td>192</td><td><code>ClearPendingSession (303)</code></td></tr>
+        <tr><td><code>POST /api/v1/train/download</code></td><td>196</td><td><code>StartDownload (312)</code> → Python script, çıktısı loga akar</td></tr>
+    </table>
+    <h3>Chat :8765 — <code>llm/src/server/chat_http_server.cpp</code></h3>
+    <table>
+        <tr><th>Endpoint</th><th>Satır</th><th>Ne yapar</th></tr>
+        <tr><td><code>GET /api/v1/health</code></td><td>138</td><td>Launcher bunu bekler.</td></tr>
+        <tr><td><code>GET/POST /api/v1/config</code></td><td>144 / 153</td><td>Aktif backend, model adı.</td></tr>
+        <tr><td><code>POST /api/v1/reload</code></td><td>189</td><td>Yeni <code>model.ckptq</code>'yu yükle. Trainer publish sonrası çağırır.</td></tr>
+        <tr><td><code>POST /api/v1/reset</code></td><td>200</td><td>KV cache sıfırla.</td></tr>
+        <tr><td><code>POST /api/v1/chat</code></td><td>211</td><td>Bölüm 8.</td></tr>
+    </table>
 
-<!-- ============================================================ -->
-<h2 id="s11">11. Sık sorulanlar</h2>
+    <!-- ============================================================ -->
+    <h2 id="s11">11. Sık sorulanlar</h2>
 
-<div class="box">
-<b>"Training: …" logundan sonra dakikalarca log gelmiyor. Takıldı mı?</b><br>
-Hayır. <code>training_session.cpp:510</code>: log <b>her 100 adımda</b> basılır. Adım 3 s sürüyorsa ilk log 5 dk sonra gelir. UI'daki "Step" sayacı ve ilerleme çubuğu her adımda güncellenir (<code>Report</code>, satır 508). <code>training_work/model.ckpt</code> dosyasının değişme saati de canlı olduğunu gösterir.
-</div>
+    <div class="box">
+        <b>"Training: …" logundan sonra dakikalarca log gelmiyor. Takıldı mı?</b><br>
+        Hayır. <code>training_session.cpp:510</code>: log <b>her 100 adımda</b> basılır. Adım 3 s sürüyorsa ilk log 5 dk sonra gelir. UI'daki "Step" sayacı ve ilerleme çubuğu her adımda güncellenir (<code>Report</code>, satır 508). <code>training_work/model.ckpt</code> dosyasının değişme saati de canlı olduğunu gösterir.
+    </div>
 
-<div class="box warn">
-<b>Neden bir adım bu kadar yavaş?</b><br>
-1) <code>checkpoint_interval=1</code> → her adımda model + optimizer (3 × model boyutu) diske yazılır. 20–50 yap.<br>
-2) <code>max_seq_len=512</code> → attention maliyeti seq² ile büyür. Kısa sohbet verisi için 256 yeterli olabilir.<br>
-3) CPU, tek örnek, tek thread <code>MatMul</code> (<code>ops.cpp:62</code>). GPU yok.
-</div>
+    <div class="box warn">
+        <b>Neden bir adım bu kadar yavaş?</b><br>
+        1) <code>checkpoint_interval=1</code> → her adımda model + optimizer (3 × model boyutu) diske yazılır. 20–50 yap.<br>
+        2) <code>max_seq_len=512</code> → attention maliyeti seq² ile büyür. Kısa sohbet verisi için 256 yeterli olabilir.<br>
+        3) CPU, tek örnek, tek thread <code>MatMul</code> (<code>ops.cpp:62</code>). GPU yok.
+    </div>
 
-<div class="box">
-<b>Durdurup aynı ayarlarla başlatınca gerçekten kaldığı yerden mi devam eder?</b><br>
-Evet, üç şey geri gelir: ağırlıklar (<code>model.ckpt</code>), AdamW m/v (<code>optimizer.bin</code>), örnek sırası (<code>BatchScheduler</code> deterministik). Log: <i>"Resuming session at step N"</i> ve <i>"Optimizer state restored (N steps)"</i>. Sadece son checkpoint'ten sonraki (en fazla <code>checkpoint_interval−1</code>) adım tekrarlanır.
-</div>
+    <div class="box">
+        <b>Durdurup aynı ayarlarla başlatınca gerçekten kaldığı yerden mi devam eder?</b><br>
+        Evet, üç şey geri gelir: ağırlıklar (<code>model.ckpt</code>), AdamW m/v (<code>optimizer.bin</code>), örnek sırası (<code>BatchScheduler</code> deterministik). Log: <i>"Resuming session at step N"</i> ve <i>"Optimizer state restored (N steps)"</i>. Sadece son checkpoint'ten sonraki (en fazla <code>checkpoint_interval−1</code>) adım tekrarlanır.
+    </div>
 
-<div class="box">
-<b>Farklı veri seti seçersem?</b><br>
-<code>ComputeSessionKey</code> farklı çıkar → <code>ClearWorkDir</code> → tokenizer ve model sıfırdan. UI önce onay ister (<code>configsMatch</code>).
-</div>
+    <div class="box">
+        <b>Farklı veri seti seçersem?</b><br>
+        <code>ComputeSessionKey</code> farklı çıkar → <code>ClearWorkDir</code> → tokenizer ve model sıfırdan. UI önce onay ister (<code>configsMatch</code>).
+    </div>
 
-<div class="box">
-<b>model.ckpt içinde ne var, ne yok?</b><br>
-Var: mimari header + ağırlıklar. Yok: m/v, adım sayısı, dataset bilgisi, tokenizer. Bunlar <code>optimizer.bin</code>, <code>session.json</code>, <code>tokenizer/</code>'da.
-</div>
+    <div class="box">
+        <b>model.ckpt içinde ne var, ne yok?</b><br>
+        Var: mimari header + ağırlıklar. Yok: m/v, adım sayısı, dataset bilgisi, tokenizer. Bunlar <code>optimizer.bin</code>, <code>session.json</code>, <code>tokenizer/</code>'da.
+    </div>
 
-<div class="box">
-<b>Chat uygulaması eğitimden etkilenir mi?</b><br>
-Hayır. Eğitim <code>train-server</code> adlı ayrı process'te. Chat process'i sadece publish sonunda <code>/reload</code> alır ve yeni <code>model.ckptq</code>'yu yükler.
-</div>
+    <div class="box">
+        <b>Chat uygulaması eğitimden etkilenir mi?</b><br>
+        Hayır. Eğitim <code>train-server</code> adlı ayrı process'te. Chat process'i sadece publish sonunda <code>/reload</code> alır ve yeni <code>model.ckptq</code>'yu yükler.
+    </div>
 
-<!-- ============================================================ -->
-<h2 id="s12">12. Klasör haritası</h2>
-<table>
-<tr><th>Yol</th><th>Rol</th><th>Bu dokümandaki bölüm</th></tr>
-<tr><td><code>MAYA/MAYA.cpp</code>, <code>launcher.cpp</code></td><td>Giriş noktası, process yönetimi</td><td>2</td></tr>
-<tr><td><code>llm/src/server/training_service.cpp</code></td><td>Eğitim işi: thread, log, durum, depolama</td><td>3</td></tr>
-<tr><td><code>llm/src/server/training_http_server.cpp</code></td><td>Trainer REST API + statik web</td><td>3, 10</td></tr>
-<tr><td><code>llm/src/training/training_session.cpp</code></td><td><b>Eğitim algoritması, resume, publish</b></td><td>4</td></tr>
-<tr><td><code>llm/src/training/chat_corpus.cpp</code>, <code>jsonl_parser.cpp</code>, <code>dialogue_format.cpp</code></td><td>Veri yükleme, eğitim metni şablonu</td><td>4.1, 4.5</td></tr>
-<tr><td><code>llm/src/tokenizer/bpe_tokenizer.cpp</code></td><td>BPE eğitimi ve encode/decode</td><td>4.3, 4.5</td></tr>
-<tr><td><code>llm/src/training/transformer_train.cpp</code></td><td><b>İleri + geri geçiş (bir adımın matematiği)</b></td><td>5</td></tr>
-<tr><td><code>llm/src/training/autograd.cpp</code>, <code>loss.cpp</code></td><td>Türev fonksiyonları, cross-entropy</td><td>5</td></tr>
-<tr><td><code>llm/src/training/adamw.cpp</code></td><td>Optimizer + m/v kaydet/yükle</td><td>5.4, 6</td></tr>
-<tr><td><code>llm/src/model/</code></td><td>Transformer, attention, FFN, RMSNorm, RoPE, checkpoint</td><td>4.4, 5, 7</td></tr>
-<tr><td><code>llm/src/tensor/</code></td><td>Tensor, MatMul, aktivasyonlar</td><td>5</td></tr>
-<tr><td><code>llm/src/quantization/</code></td><td>INT8 dönüşüm</td><td>4.9</td></tr>
-<tr><td><code>llm/src/inference/</code></td><td>KV cache, prefill/decode, sampling</td><td>8</td></tr>
-<tr><td><code>llm/src/server/chat_http_server.cpp</code>, <code>*_chat_backend.cpp</code></td><td>Chat API, yerel/Ollama/OpenAI</td><td>8, 10</td></tr>
-<tr><td><code>trainer_web/</code></td><td>Trainer arayüzü (HTML/CSS/JS)</td><td>9</td></tr>
-<tr><td><code>tests/</code></td><td>GoogleTest (67 test)</td><td>—</td></tr>
-<tr><td><code>scripts/</code></td><td>Build, veri seti indirme (Python)</td><td>9</td></tr>
-<tr><td><code>data/corpus/</code></td><td>Eğitim .jsonl dosyaları</td><td>7</td></tr>
-<tr><td><code>training_work/</code></td><td>Geçici checkpoint (git'e girmez)</td><td>4.8, 7</td></tr>
-</table>
+    <!-- ============================================================ -->
+    <h2 id="s12">12. Klasör haritası</h2>
+    <table>
+        <tr><th>Yol</th><th>Rol</th><th>Bu dokümandaki bölüm</th></tr>
+        <tr><td><code>MAYA/MAYA.cpp</code>, <code>launcher.cpp</code></td><td>Giriş noktası, process yönetimi</td><td>2</td></tr>
+        <tr><td><code>llm/src/server/training_service.cpp</code></td><td>Eğitim işi: thread, log, durum, depolama</td><td>3</td></tr>
+        <tr><td><code>llm/src/server/training_http_server.cpp</code></td><td>Trainer REST API + statik web</td><td>3, 10</td></tr>
+        <tr><td><code>llm/src/training/training_session.cpp</code></td><td><b>Eğitim algoritması, resume, publish</b></td><td>4</td></tr>
+        <tr><td><code>llm/src/training/chat_corpus.cpp</code>, <code>jsonl_parser.cpp</code>, <code>dialogue_format.cpp</code></td><td>Veri yükleme, eğitim metni şablonu</td><td>4.1, 4.5</td></tr>
+        <tr><td><code>llm/src/tokenizer/bpe_tokenizer.cpp</code></td><td>BPE eğitimi ve encode/decode</td><td>4.3, 4.5</td></tr>
+        <tr><td><code>llm/src/training/transformer_train.cpp</code></td><td><b>İleri + geri geçiş (bir adımın matematiği)</b></td><td>5</td></tr>
+        <tr><td><code>llm/src/training/autograd.cpp</code>, <code>loss.cpp</code></td><td>Türev fonksiyonları, cross-entropy</td><td>5</td></tr>
+        <tr><td><code>llm/src/training/adamw.cpp</code></td><td>Optimizer + m/v kaydet/yükle</td><td>5.4, 6</td></tr>
+        <tr><td><code>llm/src/model/</code></td><td>Transformer, attention, FFN, RMSNorm, RoPE, checkpoint</td><td>4.4, 5, 7</td></tr>
+        <tr><td><code>llm/src/tensor/</code></td><td>Tensor, MatMul, aktivasyonlar</td><td>5</td></tr>
+        <tr><td><code>llm/src/quantization/</code></td><td>INT8 dönüşüm</td><td>4.9</td></tr>
+        <tr><td><code>llm/src/inference/</code></td><td>KV cache, prefill/decode, sampling</td><td>8</td></tr>
+        <tr><td><code>llm/src/server/chat_http_server.cpp</code>, <code>*_chat_backend.cpp</code></td><td>Chat API, yerel/Ollama/OpenAI</td><td>8, 10</td></tr>
+        <tr><td><code>trainer_web/</code></td><td>Trainer arayüzü (HTML/CSS/JS)</td><td>9</td></tr>
+        <tr><td><code>tests/</code></td><td>GoogleTest (67 test)</td><td>—</td></tr>
+        <tr><td><code>scripts/</code></td><td>Build, veri seti indirme (Python)</td><td>9</td></tr>
+        <tr><td><code>data/corpus/</code></td><td>Eğitim .jsonl dosyaları</td><td>7</td></tr>
+        <tr><td><code>training_work/</code></td><td>Geçici checkpoint (git'e girmez)</td><td>4.8, 7</td></tr>
+    </table>
 
-<p class="muted" style="margin-top:40px">MAYA LLM · Algoritma → Kod Haritası · 28 Eylül 2026</p>
+    <p class="muted" style="margin-top:40px">MAYA LLM · Algoritma → Kod Haritası · 28 Eylül 2026</p>
 </body>
 </html>
