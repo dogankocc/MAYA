@@ -83,6 +83,15 @@ Status ChatHttpServer::HandleReset() {
   return backend_->Reset();
 }
 
+Status ChatHttpServer::HandleReload() {
+  if (!backend_) {
+    return Status::Fail(ErrorCode::Internal, "backend is not configured");
+  }
+
+  std::lock_guard<std::mutex> lock(mutex_);
+  return backend_->ReloadLocalModel();
+}
+
 Status ChatHttpServer::Run(const std::string& host, const int port) {
   httplib::Server http;
   stopRequested_ = false;
@@ -174,6 +183,17 @@ Status ChatHttpServer::Run(const std::string& host, const int port) {
     }
 
     (void)backend_->Reset();
+    res.set_content(detail::BuildConfigJson(backend_->GetConfig()), "application/json");
+  });
+
+  http.Post("/api/v1/reload", [this](const httplib::Request&, httplib::Response& res) {
+    const Status status = HandleReload();
+    if (!status.IsOk()) {
+      res.status = 500;
+      res.set_content("{\"ok\":false,\"error\":\"" + detail::JsonEscape(status.Message()) + "\"}",
+                      "application/json");
+      return;
+    }
     res.set_content(detail::BuildConfigJson(backend_->GetConfig()), "application/json");
   });
 

@@ -24,6 +24,7 @@ add_executable(llm_core_tests
   batch_inference_test.cpp
   continuous_batch_test.cpp
   training_test.cpp
+  training_session_test.cpp
   cli_chat_test.cpp
   quantization_test.cpp
 )

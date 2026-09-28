@@ -39,29 +39,58 @@ LANG_KEYWORDS = {
 class DatasetInfo:
     name: str
     hf_id: str
+    description: str
     instruction_key: str = "instruction"
     response_key: str = "response"
+    input_key: Optional[str] = None
     split: str = "train"
     max_samples: int = MAX_SAMPLES_PER_DATASET
     language_filter: Optional[str] = None  # "cpp", "python", None=tumu
+
+    @property
+    def output_file(self) -> Path:
+        return OUT_DIR / f"code_{self.name.lower().replace('-', '_')}.jsonl"
 
 
 DATASETS = [
     DatasetInfo(
         "Magicoder-OSS",
         "ise-uiuc/Magicoder-OSS-Instruct-75K",
-        instruction_key="instruction",
-        response_key="response",
-        max_samples=50000,
-        language_filter="cpp"
+        "Magicoder OSS-Instruct - C/C++ agirlikli kod uretimi",
+        instruction_key="problem",
+        response_key="solution",
+        max_samples=30000,
+        language_filter="cpp",
     ),
     DatasetInfo(
         "CodeAlpaca",
         "flwrlabs/code-alpaca-20k",
-        instruction_key="instruction",
+        "CodeAlpaca 20k - genel kod talimatlari",
         response_key="output",
         max_samples=20000,
-        language_filter=None
+    ),
+    DatasetInfo(
+        "Python-Instructions-18k",
+        "iamtarun/python_code_instructions_18k_alpaca",
+        "Python kod talimatlari (18k, alpaca formati)",
+        response_key="output",
+        input_key="input",
+        max_samples=18000,
+    ),
+    DatasetInfo(
+        "Evol-Instruct-Code-80k",
+        "nickrosh/Evol-Instruct-Code-80k-v1",
+        "Evol-Instruct Code 80k - zor ve cok adimli kod problemleri",
+        response_key="output",
+        max_samples=40000,
+    ),
+    DatasetInfo(
+        "Glaive-Code-Assistant",
+        "glaiveai/glaive-code-assistant",
+        "Glaive Code Assistant - soru/cevap tarzi kod yardimi",
+        instruction_key="question",
+        response_key="answer",
+        max_samples=40000,
     ),
 ]
 
@@ -145,8 +174,11 @@ def load_single_dataset(info: DatasetInfo, seen: Set[str]) -> List[str]:
 
         try:
             item = ds[idx]
-            instruction = item.get(info.instruction_key, "") or ""
-            response = item.get(info.response_key, "") or ""
+            instruction = (item.get(info.instruction_key, "") or "").strip()
+            response = (item.get(info.response_key, "") or "").strip()
+            extra = (item.get(info.input_key, "") or "").strip() if info.input_key else ""
+            if extra:
+                instruction = f"{instruction}\n\n{extra}"
 
             if not instruction or not response:
                 continue
@@ -170,9 +202,19 @@ def load_single_dataset(info: DatasetInfo, seen: Set[str]) -> List[str]:
     return lines
 
 
+def write_dataset_file(info: DatasetInfo, lines: List[str]) -> None:
+    random.Random(42).shuffle(lines)
+    with info.output_file.open("w", encoding="utf-8", newline="\n") as f:
+        f.write(f"# {info.description} ({len(lines)} ornek)\n")
+        f.write(f"# Kaynak: {info.hf_id}\n")
+        f.write("\n".join(lines) + "\n")
+
+
 def main() -> int:
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
+
+    force = "--force" in sys.argv[1:]
 
     print("=" * 70)
     print("  KAPSAMLI KOD EGITIM VERI SETI INDIRICI")
@@ -186,41 +228,38 @@ def main() -> int:
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
 
-    all_lines: List[str] = []
     seen: Set[str] = set()
+    total = 0
+    written: List[Path] = []
 
     for info in DATASETS:
-        if len(all_lines) >= MAX_TOTAL_SAMPLES:
+        if total >= MAX_TOTAL_SAMPLES:
             break
 
+        if info.output_file.exists() and not force:
+            print(f"  [ATLA] {info.output_file.name} zaten var (yeniden indirmek icin --force)")
+            continue
+
         lines = load_single_dataset(info, seen)
-        all_lines.extend(lines)
+        if not lines:
+            continue
+
+        write_dataset_file(info, lines)
+        written.append(info.output_file)
+        total += len(lines)
 
     print()
     print("=" * 70)
-    print(f"  TOPLAM: {len(all_lines)} benzersiz ornek")
+    print(f"  TOPLAM: {total} benzersiz ornek, {len(written)} dosya")
     print("=" * 70)
     print()
 
-    if len(all_lines) == 0:
+    if total == 0:
         print("[HATA] Ornek yuklenemedi!")
         return 1
 
-    random.Random(42).shuffle(all_lines)
-
-    output_file = OUT_DIR / "code_training_unified.jsonl"
-
-    with output_file.open("w", encoding="utf-8", newline="\n") as f:
-        f.write(f"# Birlestirilmis kod egitim veri seti ({len(all_lines)} ornek)\n")
-        f.write(f"# Kaynaklar: {', '.join(d.name for d in DATASETS)}\n")
-        for line in all_lines:
-            f.write(line + "\n")
-
-    file_size = output_file.stat().st_size
-    size_mb = file_size / (1024 * 1024)
-
-    print(f"  Kaydedildi: {output_file}")
-    print(f"  Dosya boyutu: {size_mb:.2f} MB")
+    for path in written:
+        print(f"  Kaydedildi: {path} ({path.stat().st_size / (1024 * 1024):.2f} MB)")
     print()
     print("=" * 70)
     print("  EGITIMI BASLATMAK ICIN:")

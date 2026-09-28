@@ -26,6 +26,8 @@ public:
 
   [[nodiscard]] Status HandleReset();
 
+  [[nodiscard]] Status HandleReload();
+
 private:
   std::unique_ptr<HybridChatBackend> backend_;
   std::unique_ptr<AutoLearnService> autoLearn_;

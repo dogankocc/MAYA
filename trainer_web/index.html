@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title data-i18n="title">MAYA Model Eğitimi</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo">◆</span>
+      <div>
+        <h1 data-i18n="title">MAYA Model Eğitimi</h1>
+        <p class="muted" data-i18n="subtitle">Veri seti seç, modeli yapılandır, eğitimi izle</p>
+      </div>
+    </div>
+    <div class="toolbar">
+      <span id="stateBadge" class="badge">idle</span>
+      <select id="langSelect" class="select-sm" aria-label="Language">
+        <option value="tr">TR</option>
+        <option value="en">EN</option>
+      </select>
+      <button id="themeToggle" class="btn ghost" data-i18n-title="theme" title="Tema">◐</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="column">
+      <article id="resumeCard" class="card accent hidden">
+        <h2 data-i18n="resumeTitle">Yarım kalan eğitim</h2>
+        <p id="resumeInfo" class="muted"></p>
+        <div class="row">
+          <button id="resumeBtn" class="btn primary" data-i18n="resume">Kaldığı yerden devam et</button>
+          <button id="clearSessionBtn" class="btn danger" data-i18n="clearSession">Geçici checkpoint'i sil</button>
+        </div>
+      </article>
+
+      <article class="card">
+        <div class="card-head">
+          <h2 data-i18n="datasets">Veri setleri</h2>
+          <div class="row">
+            <button id="selectAllBtn" class="btn ghost sm" data-i18n="selectAll">Tümünü seç</button>
+            <button id="refreshDatasetsBtn" class="btn ghost sm" data-i18n="refresh">Yenile</button>
+          </div>
+        </div>
+        <label class="check">
+          <input type="checkbox" id="includeBuiltin" checked>
+          <span data-i18n="builtin">Yerleşik sohbet diyalogları (~170 örnek)</span>
+        </label>
+        <ul id="datasetList" class="dataset-list"></ul>
+        <p class="muted small" id="datasetSummary"></p>
+        <div class="row wrap">
+          <button id="downloadCodeBtn" class="btn" data-i18n="downloadCode">Kod veri seti indir (Hugging Face)</button>
+          <button id="downloadTurkishBtn" class="btn" data-i18n="downloadTurkish">Türkçe sohbet seti indir</button>
+        </div>
+      </article>
+
+      <article class="card">
+        <h2 data-i18n="modelConfig">Model yapılandırması</h2>
+        <label class="field">
+          <span data-i18n="preset">Hazır boyut</span>
+          <select id="presetSelect"></select>
+        </label>
+        <div class="grid">
+          <label class="field"><span data-i18n="layers">Katman</span><input type="number" id="numLayers" min="1"></label>
+          <label class="field"><span data-i18n="hidden">Gizli boyut</span><input type="number" id="hiddenDim" min="8" step="8"></label>
+          <label class="field"><span data-i18n="heads">Head</span><input type="number" id="numHeads" min="1"></label>
+          <label class="field"><span data-i18n="kvHeads">KV head</span><input type="number" id="numKvHeads" min="1"></label>
+          <label class="field"><span data-i18n="intermediate">FFN boyut</span><input type="number" id="intermediateDim" min="8"></label>
+          <label class="field"><span data-i18n="maxSeq">Maks. dizi</span><input type="number" id="maxSeqLen" min="16"></label>
+          <label class="field"><span data-i18n="vocab">Sözcük (vocab)</span><input type="number" id="vocabSize" min="256"></label>
+          <label class="field"><span data-i18n="steps">Adım (0 = otomatik)</span><input type="number" id="steps" min="0"></label>
+          <label class="field"><span data-i18n="lr">Öğrenme hızı (0 = otomatik)</span><input type="number" id="learningRate" min="0" step="0.0001"></label>
+          <label class="field"><span data-i18n="ckptEvery">Checkpoint aralığı (adım)</span><input type="number" id="checkpointInterval" min="1"></label>
+          <label class="field"><span data-i18n="seed">Seed</span><input type="number" id="seed" min="0"></label>
+        </div>
+        <p class="muted small" id="estimate"></p>
+        <div class="row">
+          <button id="startBtn" class="btn primary lg" data-i18n="start">Eğitimi başlat</button>
+          <button id="stopBtn" class="btn danger lg" data-i18n="stop" disabled>Durdur</button>
+        </div>
+        <p id="formError" class="error hidden"></p>
+      </article>
+    </section>
+
+    <section class="column">
+      <article class="card">
+        <h2 data-i18n="progress">İlerleme</h2>
+        <div class="progress"><div id="progressFill" class="progress-fill"></div></div>
+        <div class="stats">
+          <div><span class="muted" data-i18n="step">Adım</span><strong id="statStep">0 / 0</strong></div>
+          <div><span class="muted" data-i18n="loss">Loss</span><strong id="statLoss">–</strong></div>
+          <div><span class="muted" data-i18n="elapsed">Geçen süre</span><strong id="statElapsed">–</strong></div>
+          <div><span class="muted" data-i18n="eta">Kalan (tahmini)</span><strong id="statEta">–</strong></div>
+          <div><span class="muted" data-i18n="speed">Hız</span><strong id="statSpeed">–</strong></div>
+          <div><span class="muted" data-i18n="resumedFrom">Devam adımı</span><strong id="statResumed">–</strong></div>
+        </div>
+        <p id="statusMessage" class="muted small"></p>
+      </article>
+
+      <article class="card">
+        <h2 data-i18n="storage">Depolama</h2>
+        <div class="stats">
+          <div><span class="muted" data-i18n="freeDisk">Boş disk</span><strong id="stFree">–</strong></div>
+          <div><span class="muted">model.ckpt</span><strong id="stModel">–</strong></div>
+          <div><span class="muted">model.ckptq</span><strong id="stQuant">–</strong></div>
+          <div><span class="muted" data-i18n="tempCkpt">Geçici checkpoint</span><strong id="stTemp">–</strong></div>
+          <div><span class="muted" data-i18n="estimatedCkpt">Tahmini yeni ckpt</span><strong id="stEstimate">–</strong></div>
+          <div><span class="muted" data-i18n="tokenizer">Tokenizer</span><strong id="stTokenizer">–</strong></div>
+        </div>
+        <div class="progress thin"><div id="diskFill" class="progress-fill"></div></div>
+        <p id="storageWarning" class="error hidden" data-i18n="diskWarning">Tahmini checkpoint boyutu boş alandan büyük!</p>
+      </article>
+
+      <article class="card grow">
+        <div class="card-head">
+          <h2 data-i18n="logs">Loglar</h2>
+          <button id="clearLogsBtn" class="btn ghost sm" data-i18n="clearLogs">Temizle</button>
+        </div>
+        <pre id="logView" class="log"></pre>
+      </article>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>

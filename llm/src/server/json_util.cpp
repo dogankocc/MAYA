@@ -8,26 +8,32 @@ namespace llm::server::detail {
 
 namespace {
 
-[[nodiscard]] std::optional<std::string> ExtractStringFieldImpl(const std::string& body, const std::string& key) {
+// Returns position of the first non-space char after `"key":`, or npos.
+[[nodiscard]] std::size_t FindValueStart(const std::string& body, const std::string& key) {
   const std::string pattern = "\"" + key + "\"";
   const std::size_t keyPos = body.find(pattern);
   if (keyPos == std::string::npos) {
-    return std::nullopt;
+    return std::string::npos;
   }
 
   const std::size_t colonPos = body.find(':', keyPos + pattern.size());
   if (colonPos == std::string::npos) {
-    return std::nullopt;
+    return std::string::npos;
   }
 
-  const std::size_t quoteStart = body.find('"', colonPos + 1);
-  if (quoteStart == std::string::npos) {
+  return body.find_first_not_of(" \t\r\n", colonPos + 1);
+}
+
+// Parses a JSON string literal starting at `pos` (which must point at the opening quote).
+// On success returns the decoded value and advances `pos` past the closing quote.
+[[nodiscard]] std::optional<std::string> ParseStringLiteral(const std::string& body, std::size_t& pos) {
+  if (pos >= body.size() || body[pos] != '"') {
     return std::nullopt;
   }
 
   std::string value;
   bool escaped = false;
-  for (std::size_t i = quoteStart + 1; i < body.size(); ++i) {
+  for (std::size_t i = pos + 1; i < body.size(); ++i) {
     const char ch = body[i];
     if (escaped) {
       if (ch == 'n') {
@@ -36,10 +42,6 @@ namespace {
         value.push_back('\t');
       } else if (ch == 'r') {
         value.push_back('\r');
-      } else if (ch == '"') {
-        value.push_back('"');
-      } else if (ch == '\\') {
-        value.push_back('\\');
       } else {
         value.push_back(ch);
       }
@@ -53,6 +55,7 @@ namespace {
     }
 
     if (ch == '"') {
+      pos = i + 1;
       return value;
     }
 
@@ -62,19 +65,22 @@ namespace {
   return std::nullopt;
 }
 
-[[nodiscard]] std::optional<bool> ExtractBoolField(const std::string& body, const std::string& key) {
-  const std::string pattern = "\"" + key + "\"";
-  const std::size_t keyPos = body.find(pattern);
-  if (keyPos == std::string::npos) {
+[[nodiscard]] std::optional<std::string> ExtractStringFieldImpl(const std::string& body, const std::string& key) {
+  std::size_t pos = FindValueStart(body, key);
+  if (pos == std::string::npos) {
     return std::nullopt;
   }
+  return ParseStringLiteral(body, pos);
+}
 
-  const std::size_t colonPos = body.find(':', keyPos + pattern.size());
-  if (colonPos == std::string::npos) {
-    return std::nullopt;
-  }
+} // namespace
 
-  const std::size_t valuePos = body.find_first_not_of(" \t\r\n", colonPos + 1);
+std::optional<std::string> ExtractStringField(const std::string& body, const std::string& key) {
+  return ExtractStringFieldImpl(body, key);
+}
+
+std::optional<bool> ExtractBoolField(const std::string& body, const std::string& key) {
+  const std::size_t valuePos = FindValueStart(body, key);
   if (valuePos == std::string::npos) {
     return std::nullopt;
   }
@@ -88,24 +94,13 @@ namespace {
   return std::nullopt;
 }
 
-[[nodiscard]] std::optional<float> ExtractNumberField(const std::string& body, const std::string& key) {
-  const std::string pattern = "\"" + key + "\"";
-  const std::size_t keyPos = body.find(pattern);
-  if (keyPos == std::string::npos) {
-    return std::nullopt;
-  }
-
-  const std::size_t colonPos = body.find(':', keyPos + pattern.size());
-  if (colonPos == std::string::npos) {
-    return std::nullopt;
-  }
-
-  const std::size_t valuePos = body.find_first_not_of(" \t\r\n", colonPos + 1);
+std::optional<float> ExtractNumberField(const std::string& body, const std::string& key) {
+  const std::size_t valuePos = FindValueStart(body, key);
   if (valuePos == std::string::npos) {
     return std::nullopt;
   }
 
-  const std::size_t valueEnd = body.find_first_of(",}\r\n", valuePos);
+  const std::size_t valueEnd = body.find_first_of(",}]\r\n", valuePos);
   const std::string numberText = body.substr(valuePos, valueEnd - valuePos);
   try {
     return std::stof(numberText);
@@ -114,7 +109,7 @@ namespace {
   }
 }
 
-[[nodiscard]] std::optional<std::size_t> ExtractSizeField(const std::string& body, const std::string& key) {
+std::optional<std::size_t> ExtractSizeField(const std::string& body, const std::string& key) {
   const auto value = ExtractNumberField(body, key);
   if (!value.has_value() || value.value() < 0.0f) {
     return std::nullopt;
@@ -122,10 +117,41 @@ namespace {
   return static_cast<std::size_t>(value.value());
 }
 
-} // namespace
+std::optional<std::vector<std::string>> ExtractStringArrayField(const std::string& body, const std::string& key) {
+  std::size_t pos = FindValueStart(body, key);
+  if (pos == std::string::npos || body[pos] != '[') {
+    return std::nullopt;
+  }
 
-std::optional<std::string> ExtractStringField(const std::string& body, const std::string& key) {
-  return ExtractStringFieldImpl(body, key);
+  std::vector<std::string> values;
+  pos += 1;
+  while (pos < body.size()) {
+    pos = body.find_first_not_of(" \t\r\n,", pos);
+    if (pos == std::string::npos) {
+      return std::nullopt;
+    }
+    if (body[pos] == ']') {
+      return values;
+    }
+    const auto item = ParseStringLiteral(body, pos);
+    if (!item.has_value()) {
+      return std::nullopt;
+    }
+    values.push_back(item.value());
+  }
+
+  return std::nullopt;
+}
+
+std::string JsonStringArray(const std::vector<std::string>& values) {
+  std::string json = "[";
+  for (std::size_t i = 0; i < values.size(); ++i) {
+    if (i > 0) {
+      json += ',';
+    }
+    json += '"' + JsonEscape(values[i]) + '"';
+  }
+  return json + "]";
 }
 
 std::optional<ChatRequest> ParseChatRequest(const std::string& body) {

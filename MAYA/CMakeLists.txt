@@ -1,4 +1,4 @@
-﻿add_executable(MAYA MAYA.cpp)
+﻿add_executable(MAYA MAYA.cpp launcher.cpp)
 
 target_link_libraries(MAYA PRIVATE llm_core)
 

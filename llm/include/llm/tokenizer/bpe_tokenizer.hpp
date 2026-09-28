@@ -1,5 +1,7 @@
 #pragma once
 
+#include <functional>
+#include <memory>
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -15,13 +17,16 @@ using MergePair = std::pair<std::string, std::string>;
 
 class BpeTokenizer {
 public:
+  using TrainProgressFn = std::function<void(std::size_t vocabSize, std::size_t targetVocabSize)>;
+
   BpeTokenizer();
 
   [[nodiscard]] const Vocabulary& GetVocabulary() const { return vocabulary_; }
 
   [[nodiscard]] Vocabulary& GetVocabulary() { return vocabulary_; }
 
-  [[nodiscard]] Status Train(const std::string& corpus, std::size_t targetVocabSize);
+  [[nodiscard]] Status Train(const std::string& corpus, std::size_t targetVocabSize,
+                             const TrainProgressFn& progress = nullptr);
 
   [[nodiscard]] std::vector<TokenId> Encode(const std::string& text) const;
 
@@ -34,13 +39,22 @@ public:
   [[nodiscard]] static Result<BpeTokenizer> Load(const std::string& directory);
 
 private:
+  struct EncodeCache;
+
+  [[nodiscard]] std::vector<TokenId> EncodeWord(const std::string& word) const;
+
   [[nodiscard]] std::vector<std::string> ApplyBpe(const std::vector<std::string>& symbols) const;
 
   [[nodiscard]] int FindBestMerge(const std::vector<std::string>& symbols) const;
 
+  void AddMerge(const std::string& left, const std::string& right);
+
+  void ResetCache();
+
   Vocabulary vocabulary_;
   std::vector<MergePair> merges_;
   std::unordered_map<std::string, int> mergeRank_;
+  std::shared_ptr<EncodeCache> cache_;
 };
 
 } // namespace llm

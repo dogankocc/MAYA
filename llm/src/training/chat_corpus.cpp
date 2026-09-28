@@ -340,19 +340,23 @@ std::string BuildTokenizerCorpus(const std::vector<DialogueSample>& samples) {
 
 std::vector<std::vector<TokenId>> BuildTrainingBatches(const BpeTokenizer& tokenizer,
                                                        const std::vector<DialogueSample>& samples,
-                                                       const std::size_t maxSeqLen) {
+                                                       const std::size_t maxSeqLen,
+                                                       const BatchProgressFn& progress) {
+  constexpr std::size_t kProgressEvery = 5000;
   std::vector<std::vector<TokenId>> batches;
   batches.reserve(samples.size());
-  for (const DialogueSample& sample : samples) {
+  for (std::size_t index = 0; index < samples.size(); ++index) {
     std::vector<TokenId> tokens =
-        tokenizer.EncodeWithSpecialTokens(BuildTrainingSequence(sample), true, false);
+        tokenizer.EncodeWithSpecialTokens(BuildTrainingSequence(samples[index]), true, false);
     if (tokens.size() > maxSeqLen) {
       tokens.resize(maxSeqLen);
     }
-    if (tokens.size() < 2) {
-      continue;
+    if (tokens.size() >= 2) {
+      batches.push_back(std::move(tokens));
     }
-    batches.push_back(std::move(tokens));
+    if (progress && (index + 1) % kProgressEvery == 0) {
+      progress(index + 1, samples.size());
+    }
   }
   return batches;
 }
