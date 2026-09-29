@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <filesystem>
 #include <fstream>
 #include <functional>
@@ -34,6 +35,28 @@ namespace {
 constexpr std::size_t kMinAutoSteps = 18000;
 constexpr std::size_t kMaxAutoSteps = 30000;
 constexpr std::size_t kLogEverySteps = 100;
+constexpr std::size_t kReferenceBatchSize = 16; // preset LR'ler bu batch için ayarlı
+
+// nanoGPT: linear warmup → cosine decay to 10% of peak
+[[nodiscard]] float ScheduleLearningRate(const std::size_t optStep, const std::size_t totalOptSteps,
+                                         const float peakLr) {
+  const float minLr = peakLr * 0.1f;
+  const std::size_t warmup =
+      std::max<std::size_t>(50, std::min<std::size_t>(totalOptSteps / 20, totalOptSteps / 2));
+  if (optStep == 0 || totalOptSteps == 0) {
+    return minLr;
+  }
+  if (optStep <= warmup) {
+    return peakLr * static_cast<float>(optStep) / static_cast<float>(warmup);
+  }
+  if (optStep >= totalOptSteps) {
+    return minLr;
+  }
+  const float progress =
+      static_cast<float>(optStep - warmup) / static_cast<float>(std::max<std::size_t>(1, totalOptSteps - warmup));
+  const float coeff = 0.5f * (1.0f + std::cos(3.14159265358979323846f * progress));
+  return minLr + coeff * (peakLr - minLr);
+}
 
 [[nodiscard]] std::string NormalizePath(const std::string& path) {
   return fs::path(path).lexically_normal().generic_string();
@@ -483,18 +506,24 @@ Status TrainingRunner::Run(const std::atomic<bool>& stopRequested) {
   }
 
   TrainerConfig trainerConfig;
-  const float baseLearningRate = ResolveLearningRate(config_.learningRate, samples.size());
-  trainerConfig.optimizer.learningRate = baseLearningRate;
+  const float configuredLr = ResolveLearningRate(config_.learningRate, samples.size());
+  const std::size_t batchSize = std::max(config_.batchSize, std::size_t(1));
+  // Batch 1 ile preset LR (batch 16 için) kullanılırsa loss warmup sonrası patlar.
+  // sqrt scaling: batch küçülünce LR orantılı düşer.
+  const float peakLearningRate =
+      configuredLr * std::sqrt(static_cast<float>(batchSize) / static_cast<float>(kReferenceBatchSize));
+  trainerConfig.optimizer.learningRate = peakLearningRate;
   Trainer trainer(*model, trainerConfig);
   if (resuming) {
     RestoreOptimizer(trainer);
   }
-  const std::size_t batchSize = std::max(config_.batchSize, std::size_t(1));
-  constexpr std::size_t kWarmupOptSteps = 200;
+  const std::size_t totalOptSteps =
+      std::max<std::size_t>(1, (state_.totalSteps + batchSize - 1) / batchSize);
   Log("Training: batches=" + std::to_string(batches.size()) + " steps=" + std::to_string(state_.totalSteps) +
       " vocab=" + std::to_string(modelConfig.vocabSize) + " layers=" + std::to_string(modelConfig.numLayers) +
       " hidden=" + std::to_string(modelConfig.hiddenDim) + " batch_size=" + std::to_string(batchSize) +
-      " lr=" + FloatText(baseLearningRate) + " warmup_opt_steps=" + std::to_string(kWarmupOptSteps) +
+      " peak_lr=" + FloatText(peakLearningRate) + " (configured=" + FloatText(configuredLr) + ")" +
+      " opt_steps≈" + std::to_string(totalOptSteps) +
       " checkpoint_every=" + std::to_string(config_.checkpointInterval));
 
   BatchScheduler scheduler(batches.size(), config_.seed);
@@ -545,12 +574,10 @@ Status TrainingRunner::Run(const std::atomic<bool>& stopRequested) {
     const float gradNormBefore = params.GradientNorm();
     params.ClipGradients(kGradientMaxNorm);
 
-    // Linear LR warmup over first optimizer steps
+    // nanoGPT schedule: warmup + cosine decay (fixed 200-step cliff yok)
     const std::size_t nextOptStep = trainer.Optimizer().StepCount() + 1;
-    const float warmedLr = nextOptStep <= kWarmupOptSteps
-                               ? baseLearningRate * static_cast<float>(nextOptStep) / static_cast<float>(kWarmupOptSteps)
-                               : baseLearningRate;
-    trainer.Optimizer().SetLearningRate(warmedLr);
+    const float scheduledLr = ScheduleLearningRate(nextOptStep, totalOptSteps, peakLearningRate);
+    trainer.Optimizer().SetLearningRate(scheduledLr);
 
     // Apply one optimizer step for the entire mini-batch
     const Status stepStatus = trainer.ApplyStep();
@@ -584,7 +611,7 @@ Status TrainingRunner::Run(const std::atomic<bool>& stopRequested) {
     if (currLogBoundary > prevLogBoundary || state_.completedSteps == state_.totalSteps) {
       Log("step " + std::to_string(state_.completedSteps) + "/" + std::to_string(state_.totalSteps) +
           " loss=" + FloatText(batchLoss) +
-          " lr=" + FloatText(warmedLr) +
+          " lr=" + FloatText(scheduledLr) +
           (gradNormBefore > kGradientMaxNorm ? " (grad clipped: " + FloatText(gradNormBefore) + " -> " + FloatText(kGradientMaxNorm) + ")" : ""));
     }
   }

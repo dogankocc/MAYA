@@ -42,7 +42,7 @@ constexpr std::int32_t kPresetTiny_NumKvHeads = 2;
 constexpr std::int32_t kPresetTiny_IntermediateDim = 512;
 constexpr std::int32_t kPresetTiny_MaxSeqLen = 128;
 constexpr std::int32_t kPresetTiny_VocabSize = 4000;
-constexpr float kPresetTiny_LearningRate = 1e-3f;      // 0.001
+constexpr float kPresetTiny_LearningRate = 3e-4f;      // 0.0003 (batch=16 referans)
 constexpr std::int32_t kPresetTiny_BatchSize = 16;
 
 constexpr std::int32_t kPresetSmall_NumLayers = 12;
