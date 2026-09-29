@@ -1,5 +1,7 @@
 #include "llm/training/parameter.hpp"
 
+#include <cmath>
+
 namespace llm::training {
 
 void ParameterList::Clear() {
@@ -14,6 +16,34 @@ void ParameterList::ZeroGrad() {
   for (Parameter& parameter : parameters_) {
     parameter.grad.Fill(0.0f);
   }
+}
+
+void ParameterList::ScaleGradients(const float scale) {
+  for (Parameter& parameter : parameters_) {
+    for (Index i = 0; i < static_cast<Index>(parameter.grad.Numel()); ++i) {
+      parameter.grad[i] *= scale;
+    }
+  }
+}
+
+float ParameterList::GradientNorm() const {
+  float sumSq = 0.0f;
+  for (const Parameter& parameter : parameters_) {
+    for (Index i = 0; i < static_cast<Index>(parameter.grad.Numel()); ++i) {
+      const float g = parameter.grad[i];
+      sumSq += g * g;
+    }
+  }
+  return std::sqrt(sumSq);
+}
+
+void ParameterList::ClipGradients(const float maxNorm) {
+  const float norm = GradientNorm();
+  if (norm <= maxNorm || norm == 0.0f) {
+    return;
+  }
+  const float scale = maxNorm / norm;
+  ScaleGradients(scale);
 }
 
 void ParameterList::CollectFromModel(model::TransformerModel& model, ParameterList& parameters) {

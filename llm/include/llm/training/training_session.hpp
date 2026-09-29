@@ -24,6 +24,7 @@ struct TrainingJobConfig {
   std::size_t steps = 0;             // 0 = auto (derived from sample count)
   float learningRate = 0.0f;         // 0 = auto
   std::size_t checkpointInterval = 1; // save temp checkpoint every N steps
+  std::size_t batchSize = 8;         // mini-batch size (samples per gradient update)
   std::uint32_t seed = 42;
   std::string workDir = "training_work";
   std::string outputModelPath = "model.ckpt";

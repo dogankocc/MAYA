@@ -110,6 +110,7 @@ void ReplyStatus(httplib::Response& res, const Status& status) {
 [[nodiscard]] std::string PresetJson(const ModelPreset preset) {
   CreateModelRequest request;
   request.learningRate = 0.0f;
+  request.batchSize = 0;
   ApplyModelPreset(preset, request);
   return "{\"id\":" + Quoted(std::to_string(static_cast<int>(preset))) + ",\"name\":" + Quoted(GetPresetName(preset)) +
          ",\"description\":" + Quoted(GetPresetDescription(preset)) +
@@ -117,7 +118,8 @@ void ReplyStatus(httplib::Response& res, const Status& status) {
          ",\"num_heads\":" + std::to_string(request.numHeads) + ",\"num_kv_heads\":" + std::to_string(request.numKvHeads) +
          ",\"intermediate_dim\":" + std::to_string(request.intermediateDim) +
          ",\"max_seq_len\":" + std::to_string(request.maxSeqLen) + ",\"vocab_size\":" + std::to_string(request.vocabSize) +
-         ",\"learning_rate\":" + Number(request.learningRate) + "}";
+         ",\"learning_rate\":" + Number(request.learningRate) +
+         ",\"batch_size\":" + std::to_string(request.batchSize) + "}";
 }
 
 [[nodiscard]] std::string PresetsJson() {

@@ -81,21 +81,26 @@ Status AdamW::Step(ParameterList& parameters) {
   ++step_;
   const float biasCorrection1 = 1.0f - std::pow(config_.beta1, static_cast<float>(step_));
   const float biasCorrection2 = 1.0f - std::pow(config_.beta2, static_cast<float>(step_));
-  const float stepSize = config_.learningRate * std::sqrt(biasCorrection2) / biasCorrection1;
 
   for (std::size_t index = 0; index < parameters.Size(); ++index) {
     Parameter& parameter = parameters.Parameters()[index];
     Tensor& moment1 = moment1_[index];
     Tensor& moment2 = moment2_[index];
+    // nanoGPT / HF: weight decay only on matrices (rank >= 2), not RMSNorm/bias
+    const bool applyDecay = parameter.tensor->Rank() >= 2;
 
     for (Index element = 0; element < static_cast<Index>(parameter.tensor->Numel()); ++element) {
       const Scalar gradient = parameter.grad[element];
       moment1[element] = config_.beta1 * moment1[element] + (1.0f - config_.beta1) * gradient;
       moment2[element] = config_.beta2 * moment2[element] + (1.0f - config_.beta2) * gradient * gradient;
 
-      const Scalar update = stepSize * moment1[element] / (std::sqrt(moment2[element]) + config_.epsilon);
+      const Scalar mHat = moment1[element] / biasCorrection1;
+      const Scalar vHat = moment2[element] / biasCorrection2;
+      const Scalar update = config_.learningRate * mHat / (std::sqrt(vHat) + config_.epsilon);
       (*parameter.tensor)[element] -= update;
-      (*parameter.tensor)[element] -= config_.learningRate * config_.weightDecay * (*parameter.tensor)[element];
+      if (applyDecay) {
+        (*parameter.tensor)[element] -= config_.learningRate * config_.weightDecay * (*parameter.tensor)[element];
+      }
     }
   }
 

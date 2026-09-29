@@ -11,12 +11,24 @@ Trainer::Trainer(model::TransformerModel& model, TrainerConfig config)
 }
 
 Status Trainer::TrainStep(const std::vector<TokenId>& tokens, float& loss) {
-  const Status trainStatus = RunTrainBackward(model_, parameters_, tokens, loss);
+  // Backward compatible: single sample with immediate step
+  const Status trainStatus = RunTrainBackward(model_, parameters_, tokens, loss, true);
   if (!trainStatus.IsOk()) {
     return trainStatus;
   }
-
   return optimizer_.Step(parameters_);
+}
+
+Status Trainer::AccumulateGradients(const std::vector<TokenId>& tokens, float& loss, bool zeroGrad) {
+  return RunTrainBackward(model_, parameters_, tokens, loss, zeroGrad);
+}
+
+Status Trainer::ApplyStep() {
+  return optimizer_.Step(parameters_);
+}
+
+void Trainer::ZeroGrad() {
+  parameters_.ZeroGrad();
 }
 
 Status Trainer::TrainEpoch(const std::vector<std::vector<TokenId>>& batches, float& averageLoss) {

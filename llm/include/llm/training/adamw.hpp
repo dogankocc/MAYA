@@ -30,6 +30,10 @@ public:
 
   [[nodiscard]] std::size_t StepCount() const { return step_; }
 
+  void SetLearningRate(float learningRate) { config_.learningRate = learningRate; }
+
+  [[nodiscard]] float LearningRate() const { return config_.learningRate; }
+
 private:
   void EnsureMoments(const ParameterList& parameters);
 

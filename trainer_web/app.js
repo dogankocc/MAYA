@@ -80,12 +80,14 @@ const I18N = {
 };
 
 const CONFIG_FIELDS = ['num_layers', 'hidden_dim', 'num_heads', 'num_kv_heads', 'intermediate_dim', 'max_seq_len',
-  'vocab_size', 'steps', 'learning_rate', 'checkpoint_interval', 'seed'];
+  'vocab_size', 'steps', 'learning_rate', 'batch_size', 'checkpoint_interval', 'seed'];
 const FIELD_IDS = {
   num_layers: 'numLayers', hidden_dim: 'hiddenDim', num_heads: 'numHeads', num_kv_heads: 'numKvHeads',
   intermediate_dim: 'intermediateDim', max_seq_len: 'maxSeqLen', vocab_size: 'vocabSize', steps: 'steps',
-  learning_rate: 'learningRate', checkpoint_interval: 'checkpointInterval', seed: 'seed',
+  learning_rate: 'learningRate', batch_size: 'batchSize', checkpoint_interval: 'checkpointInterval', seed: 'seed',
 };
+// PRESET_FIELDS: model mimarisini belirleyen alanlar (preset eşleşmesi için)
+// learning_rate ve batch_size preset'ten alınır ama mimariyi değiştirmez
 const PRESET_FIELDS = ['num_layers', 'hidden_dim', 'num_heads', 'num_kv_heads', 'intermediate_dim', 'max_seq_len', 'vocab_size'];
 
 const $ = (id) => document.getElementById(id);
@@ -154,7 +156,13 @@ const estimateParams = (c) => {
 // ---------- config form ----------
 const readConfig = () => {
   const config = { datasets: [...(state.selected ?? [])], include_builtin: $('includeBuiltin').checked };
-  for (const field of CONFIG_FIELDS) config[field] = Number($(FIELD_IDS[field]).value) || 0;
+  for (const field of CONFIG_FIELDS) {
+    const numValue = Number($(FIELD_IDS[field]).value);
+    // NaN ise (boş input) veya 0'dan küçükse 0 kullan, değilse gerçek değeri kullan
+    // ÖNEMLİ: || 0 yerine bu kullanılır çünkü || 0, 0.005 gibi küçük değerleri de 0 yapmaz
+    // Ama boş input (NaN) veya negatif değerler için 0 kullanılır
+    config[field] = isNaN(numValue) || numValue < 0 ? 0 : numValue;
+  }
   return config;
 };
 
@@ -223,7 +231,10 @@ const applyPreset = (id) => {
   if (!preset) return;
   const patch = {};
   for (const field of PRESET_FIELDS) patch[field] = preset[field];
-  patch.learning_rate = 0;
+  // Preset'in kendi learning_rate ve batch_size'ını kullan
+  // (eski kod learning_rate = 0 atıyordu - bu bug!)
+  if (preset.learning_rate !== undefined) patch.learning_rate = preset.learning_rate;
+  if (preset.batch_size !== undefined) patch.batch_size = preset.batch_size;
   fillConfig(patch);
 };
 
@@ -270,7 +281,7 @@ const loadDatasets = async () => {
 
 // ---------- status / logs ----------
 const configsMatch = (a, b) => a.include_builtin === b.include_builtin &&
-  PRESET_FIELDS.concat(['steps', 'learning_rate', 'seed']).every((f) => Number(a[f]) === Number(b[f])) &&
+  PRESET_FIELDS.concat(['steps', 'learning_rate', 'batch_size', 'seed']).every((f) => Number(a[f]) === Number(b[f])) &&
   [...a.datasets].sort().join('|') === [...b.datasets].sort().join('|');
 
 const renderStatus = (status) => {

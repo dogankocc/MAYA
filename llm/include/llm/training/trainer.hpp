@@ -21,9 +21,20 @@ class Trainer {
 public:
   Trainer(model::TransformerModel& model, TrainerConfig config);
 
+  // Single sample with immediate optimizer step (backward-compatible)
   [[nodiscard]] Status TrainStep(const std::vector<TokenId>& tokens, float& loss);
 
   [[nodiscard]] Status TrainEpoch(const std::vector<std::vector<TokenId>>& batches, float& averageLoss);
+
+  // Mini-batch support: accumulate gradients without optimizer step
+  // First call in batch should pass zeroGrad=true, subsequent calls pass false
+  [[nodiscard]] Status AccumulateGradients(const std::vector<TokenId>& tokens, float& loss, bool zeroGrad = false);
+
+  // Apply accumulated gradients with optimizer step
+  [[nodiscard]] Status ApplyStep();
+
+  // Manually zero gradients
+  void ZeroGrad();
 
   [[nodiscard]] ParameterList& Parameters() { return parameters_; }
 

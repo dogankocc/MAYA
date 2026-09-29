@@ -19,6 +19,9 @@ namespace {
 void AccumulateParameterGrad(ParameterList& parameters, Tensor& tensor, const Tensor& grad) {
   for (Parameter& parameter : parameters.Parameters()) {
     if (parameter.tensor == &tensor) {
+      if (parameter.grad.GetShape() != grad.GetShape()) {
+        return;
+      }
       Accumulate(parameter.grad, grad);
       return;
     }
@@ -194,14 +197,19 @@ Status BackwardAttention(model::MultiHeadAttention& attention, const ModelConfig
         }
       }
 
+      // Softmax Jacobian: ∂L/∂s_i = p_i * (∂L/∂p_i - Σ_j ∂L/∂p_j * p_j)
+      // Must compute Σ once from original ∂L/∂p before mutating gradScores.
+      Scalar softMaxDot = 0.0f;
       for (Dimension keyPos = 0; keyPos <= queryPos; ++keyPos) {
-        Scalar dot = 0.0f;
-        for (Dimension inner = 0; inner <= queryPos; ++inner) {
-          dot += gradScores[static_cast<std::size_t>(inner)] * probs[static_cast<std::size_t>(inner)];
-        }
+        softMaxDot += gradScores[static_cast<std::size_t>(keyPos)] * probs[static_cast<std::size_t>(keyPos)];
+      }
+      for (Dimension keyPos = 0; keyPos <= queryPos; ++keyPos) {
         gradScores[static_cast<std::size_t>(keyPos)] =
-            (gradScores[static_cast<std::size_t>(keyPos)] - dot) * probs[static_cast<std::size_t>(keyPos)] * scale;
+            (gradScores[static_cast<std::size_t>(keyPos)] - softMaxDot) *
+            probs[static_cast<std::size_t>(keyPos)] * scale;
+      }
 
+      for (Dimension keyPos = 0; keyPos <= queryPos; ++keyPos) {
         for (Dimension dim = 0; dim < headDim; ++dim) {
           const Scalar keyValue =
               cache.keys.At({static_cast<Index>(keyPos), static_cast<Index>(kvHead * headDim + dim)});
@@ -387,7 +395,7 @@ Status BackwardBlock(model::TransformerBlock& block, const ModelConfig& config, 
 
 } // namespace
 
-Status RunTrainBackward(model::TransformerModel& model, ParameterList& parameters, const std::vector<TokenId>& tokens, float& loss) {
+Status RunTrainBackward(model::TransformerModel& model, ParameterList& parameters, const std::vector<TokenId>& tokens, float& loss, bool zeroGrad) {
   if (tokens.size() < 2) {
     return Status::Fail(ErrorCode::InvalidArgument, "training requires at least two tokens");
   }
@@ -397,7 +405,9 @@ Status RunTrainBackward(model::TransformerModel& model, ParameterList& parameter
     return Status::Fail(ErrorCode::InvalidArgument, "sequence length exceeds max_seq_len");
   }
 
-  parameters.ZeroGrad();
+  if (zeroGrad) {
+    parameters.ZeroGrad();
+  }
   TrainCache cache;
   cache.tokens = tokens;
 

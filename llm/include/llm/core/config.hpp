@@ -16,7 +16,7 @@ struct ModelConfig {
   std::size_t intermediateDim = 2048;
   std::size_t maxSeqLen = 2048;
   float ropeTheta = 10000.0f;
-  float normEps = 1e-5f;
+  float normEps = 1e-6f;  // LLaMA / HF default
 
   [[nodiscard]] Status Validate() const;
 };

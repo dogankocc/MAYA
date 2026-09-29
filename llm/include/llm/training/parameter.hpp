@@ -20,6 +20,15 @@ public:
 
   void ZeroGrad();
 
+  // Gradientleri scale et (mini-batch ortalaması için)
+  void ScaleGradients(float scale);
+
+  // Gradient L2 normunu hesapla
+  [[nodiscard]] float GradientNorm() const;
+
+  // Gradientleri maxNorm'a göre clip'le
+  void ClipGradients(float maxNorm);
+
   [[nodiscard]] std::size_t Size() const { return parameters_.size(); }
 
   [[nodiscard]] std::vector<Parameter>& Parameters() { return parameters_; }

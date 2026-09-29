@@ -13,7 +13,7 @@ Linear::Linear(const Dimension inputDim, const Dimension outputDim, const bool u
       bias_(useBias ? Tensor::Zeros(Shape{outputDim}) : Tensor{}) {}
 
 void Linear::ResetParameters(std::mt19937& rng) {
-  InitTensorXavier(weight_, rng);
+  InitTensorNormal(weight_, rng, 0.02f);
   if (useBias_) {
     bias_.Fill(0.0f);
   }

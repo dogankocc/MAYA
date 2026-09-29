@@ -129,16 +129,20 @@ Status RmsNormBackward(const Tensor& input, const Tensor& weight, const Tensor& 
 
 Status LinearBackward(const Tensor& input, const Tensor& weight, const Tensor& gradOutput, Tensor& gradInput,
                       Tensor& gradWeight) {
+  // Forward: y = x @ W^T  (W is [out, in])
+  // MatMulBackward(x, W^T, dy) yields:
+  //   dX = dy @ W
+  //   d(W^T) = x^T @ dy   ← must transpose to get dW
   const Tensor weightTransposed = weight.Transpose2D();
   Tensor gradInputTmp;
-  Tensor gradWeightTmp;
-  const Status status = MatMulBackward(input, weightTransposed, gradOutput, gradInputTmp, gradWeightTmp);
+  Tensor gradWeightT;
+  const Status status = MatMulBackward(input, weightTransposed, gradOutput, gradInputTmp, gradWeightT);
   if (!status.IsOk()) {
     return status;
   }
 
   gradInput = std::move(gradInputTmp);
-  gradWeight = std::move(gradWeightTmp);
+  gradWeight = gradWeightT.Transpose2D();
   return Status::Ok();
 }
 

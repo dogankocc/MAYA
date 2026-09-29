@@ -201,6 +201,9 @@ TrainingJobConfig DefaultTrainingJobConfig() {
   config.model.numKvHeads = 6;
   config.model.intermediateDim = 3072;
   config.model.maxSeqLen = 512;
+  // Medium preset varsayılanları
+  config.learningRate = 3e-4f;
+  config.batchSize = 8;
   return config;
 }
 
@@ -213,6 +216,7 @@ std::string ComputeSessionKey(const TrainingJobConfig& config) {
   canonical << "builtin=" << config.includeBuiltin << ";layers=" << model.numLayers << ";hidden=" << model.hiddenDim
             << ";heads=" << model.numHeads << ";kv=" << model.numKvHeads << ";inter=" << model.intermediateDim
             << ";seq=" << model.maxSeqLen << ";vocab=" << model.vocabSize << ";steps=" << config.steps
+            << ";batch=" << config.batchSize
             << ";lr=" << FloatText(config.learningRate) << ";seed=" << config.seed;
   return Fnv1a64Hex(canonical.str());
 }
@@ -231,6 +235,7 @@ std::string SerializeTrainingJobConfigFields(const TrainingJobConfig& config) {
   json += ",\"steps\":" + std::to_string(config.steps);
   json += ",\"learning_rate\":" + FloatText(config.learningRate);
   json += ",\"checkpoint_interval\":" + std::to_string(config.checkpointInterval);
+  json += ",\"batch_size\":" + std::to_string(config.batchSize);
   json += ",\"seed\":" + std::to_string(config.seed);
   json += ",\"work_dir\":\"" + JsonEscape(config.workDir) + "\"";
   json += ",\"output_model\":\"" + JsonEscape(config.outputModelPath) + "\"";
@@ -267,6 +272,7 @@ TrainingJobConfig ParseTrainingJobConfig(const std::string& json, const Training
   sizeOr("vocab_size", config.model.vocabSize);
   sizeOr("steps", config.steps);
   sizeOr("checkpoint_interval", config.checkpointInterval);
+  sizeOr("batch_size", config.batchSize);
   if (const auto rate = ExtractNumberField(json, "learning_rate")) {
     config.learningRate = *rate;
   }
@@ -345,7 +351,7 @@ float ResolveLearningRate(const float requestedRate, const std::size_t sampleCou
   if (requestedRate > 0.0f) {
     return requestedRate;
   }
-  return sampleCount > 1000 ? 0.002f : 0.003f;
+  return sampleCount > 1000 ? 3e-4f : 5e-4f;
 }
 
 TrainingRunner::TrainingRunner(TrainingJobConfig config, LogFn log, ProgressFn progress)
@@ -477,34 +483,90 @@ Status TrainingRunner::Run(const std::atomic<bool>& stopRequested) {
   }
 
   TrainerConfig trainerConfig;
-  trainerConfig.optimizer.learningRate = ResolveLearningRate(config_.learningRate, samples.size());
+  const float baseLearningRate = ResolveLearningRate(config_.learningRate, samples.size());
+  trainerConfig.optimizer.learningRate = baseLearningRate;
   Trainer trainer(*model, trainerConfig);
   if (resuming) {
     RestoreOptimizer(trainer);
   }
+  const std::size_t batchSize = std::max(config_.batchSize, std::size_t(1));
+  constexpr std::size_t kWarmupOptSteps = 200;
   Log("Training: batches=" + std::to_string(batches.size()) + " steps=" + std::to_string(state_.totalSteps) +
       " vocab=" + std::to_string(modelConfig.vocabSize) + " layers=" + std::to_string(modelConfig.numLayers) +
-      " hidden=" + std::to_string(modelConfig.hiddenDim) + " lr=" + FloatText(trainerConfig.optimizer.learningRate) +
+      " hidden=" + std::to_string(modelConfig.hiddenDim) + " batch_size=" + std::to_string(batchSize) +
+      " lr=" + FloatText(baseLearningRate) + " warmup_opt_steps=" + std::to_string(kWarmupOptSteps) +
       " checkpoint_every=" + std::to_string(config_.checkpointInterval));
 
   BatchScheduler scheduler(batches.size(), config_.seed);
   std::size_t lastSavedStep = state_.completedSteps;
-  for (std::size_t step = state_.completedSteps; step < state_.totalSteps; ++step) {
+
+  // Each iteration processes one mini-batch (batchSize samples)
+  // state_.completedSteps tracks number of SAMPLES processed, not weight updates
+  while (state_.completedSteps < state_.totalSteps) {
     if (stopRequested.load()) {
       stopped_ = true;
       break;
     }
 
-    float loss = 0.0f;
-    const Status stepStatus = trainer.TrainStep(batches[scheduler.IndexFor(step)], loss);
+    // Accumulate gradients for mini-batch
+    float batchLoss = 0.0f;
+    std::size_t samplesProcessed = 0;
+    bool firstInBatch = true;
+
+    for (std::size_t i = 0; i < batchSize && state_.completedSteps < state_.totalSteps; ++i) {
+      const std::size_t sampleIdx = state_.completedSteps;
+      float sampleLoss = 0.0f;
+
+      // Use AccumulateGradients: first sample zeros grad, subsequent ones accumulate
+      const Status status = trainer.AccumulateGradients(
+          batches[scheduler.IndexFor(sampleIdx)], sampleLoss, firstInBatch);
+      if (!status.IsOk()) {
+        return status;
+      }
+
+      batchLoss += sampleLoss;
+      samplesProcessed++;
+      state_.completedSteps++;
+      firstInBatch = false;
+    }
+
+    if (samplesProcessed == 0) {
+      break;
+    }
+
+    // Mini-batch gradientlerini normalize et ve clip'le
+    ParameterList& params = trainer.Parameters();
+    constexpr float kGradientMaxNorm = 1.0f;
+
+    // 1. Gradientleri batch boyutuna böl (ortalama al)
+    params.ScaleGradients(1.0f / static_cast<float>(samplesProcessed));
+
+    // 2. Gradient clipping (exploding gradient'i önle)
+    const float gradNormBefore = params.GradientNorm();
+    params.ClipGradients(kGradientMaxNorm);
+
+    // Linear LR warmup over first optimizer steps
+    const std::size_t nextOptStep = trainer.Optimizer().StepCount() + 1;
+    const float warmedLr = nextOptStep <= kWarmupOptSteps
+                               ? baseLearningRate * static_cast<float>(nextOptStep) / static_cast<float>(kWarmupOptSteps)
+                               : baseLearningRate;
+    trainer.Optimizer().SetLearningRate(warmedLr);
+
+    // Apply one optimizer step for the entire mini-batch
+    const Status stepStatus = trainer.ApplyStep();
     if (!stepStatus.IsOk()) {
       return stepStatus;
     }
 
-    state_.completedSteps = step + 1;
-    state_.lastLoss = loss;
+    batchLoss /= static_cast<float>(samplesProcessed);
+    state_.lastLoss = batchLoss;
+
+    // Checkpoint: check if we crossed a checkpoint boundary in sample count
     const bool checkpoint =
-        state_.completedSteps % config_.checkpointInterval == 0 || state_.completedSteps == state_.totalSteps;
+        (config_.checkpointInterval > 0 &&
+         (lastSavedStep / config_.checkpointInterval) < (state_.completedSteps / config_.checkpointInterval)) ||
+        state_.completedSteps == state_.totalSteps;
+
     if (checkpoint) {
       const Status saveStatus = SaveTempCheckpoint(*model, trainer.Optimizer(), state_);
       if (!saveStatus.IsOk()) {
@@ -513,11 +575,17 @@ Status TrainingRunner::Run(const std::atomic<bool>& stopRequested) {
       lastSavedStep = state_.completedSteps;
     }
 
-    Report(TrainingProgress{.step = state_.completedSteps, .totalSteps = state_.totalSteps, .loss = loss,
+    Report(TrainingProgress{.step = state_.completedSteps, .totalSteps = state_.totalSteps, .loss = batchLoss,
                             .checkpointSaved = checkpoint});
-    if (state_.completedSteps % kLogEverySteps == 0 || state_.completedSteps == state_.totalSteps) {
+
+    // Log every kLogEverySteps samples
+    const std::size_t prevLogBoundary = (state_.completedSteps - samplesProcessed) / kLogEverySteps;
+    const std::size_t currLogBoundary = state_.completedSteps / kLogEverySteps;
+    if (currLogBoundary > prevLogBoundary || state_.completedSteps == state_.totalSteps) {
       Log("step " + std::to_string(state_.completedSteps) + "/" + std::to_string(state_.totalSteps) +
-          " loss=" + FloatText(loss));
+          " loss=" + FloatText(batchLoss) +
+          " lr=" + FloatText(warmedLr) +
+          (gradNormBefore > kGradientMaxNorm ? " (grad clipped: " + FloatText(gradNormBefore) + " -> " + FloatText(kGradientMaxNorm) + ")" : ""));
     }
   }
 

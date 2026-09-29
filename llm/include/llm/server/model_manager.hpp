@@ -42,7 +42,7 @@ constexpr std::int32_t kPresetTiny_NumKvHeads = 2;
 constexpr std::int32_t kPresetTiny_IntermediateDim = 512;
 constexpr std::int32_t kPresetTiny_MaxSeqLen = 128;
 constexpr std::int32_t kPresetTiny_VocabSize = 4000;
-constexpr float kPresetTiny_LearningRate = 5e-4f;
+constexpr float kPresetTiny_LearningRate = 1e-3f;      // 0.001
 constexpr std::int32_t kPresetTiny_BatchSize = 16;
 
 constexpr std::int32_t kPresetSmall_NumLayers = 12;
@@ -52,7 +52,7 @@ constexpr std::int32_t kPresetSmall_NumKvHeads = 3;
 constexpr std::int32_t kPresetSmall_IntermediateDim = 1536;
 constexpr std::int32_t kPresetSmall_MaxSeqLen = 256;
 constexpr std::int32_t kPresetSmall_VocabSize = 8000;
-constexpr float kPresetSmall_LearningRate = 4e-4f;
+constexpr float kPresetSmall_LearningRate = 5e-4f;     // 0.0005
 constexpr std::int32_t kPresetSmall_BatchSize = 12;
 
 constexpr std::int32_t kPresetMedium_NumLayers = 24;
@@ -62,7 +62,7 @@ constexpr std::int32_t kPresetMedium_NumKvHeads = 6;
 constexpr std::int32_t kPresetMedium_IntermediateDim = 3072;
 constexpr std::int32_t kPresetMedium_MaxSeqLen = 512;
 constexpr std::int32_t kPresetMedium_VocabSize = 8000;
-constexpr float kPresetMedium_LearningRate = 3e-4f;
+constexpr float kPresetMedium_LearningRate = 3e-4f;    // 0.0003
 constexpr std::int32_t kPresetMedium_BatchSize = 8;
 
 constexpr std::int32_t kPresetLarge_NumLayers = 32;
@@ -72,7 +72,7 @@ constexpr std::int32_t kPresetLarge_NumKvHeads = 8;
 constexpr std::int32_t kPresetLarge_IntermediateDim = 4096;
 constexpr std::int32_t kPresetLarge_MaxSeqLen = 1024;
 constexpr std::int32_t kPresetLarge_VocabSize = 16000;
-constexpr float kPresetLarge_LearningRate = 2e-4f;
+constexpr float kPresetLarge_LearningRate = 2e-4f;     // 0.0002
 constexpr std::int32_t kPresetLarge_BatchSize = 4;
 
 constexpr std::int32_t kPresetXLarge_NumLayers = 40;
@@ -82,7 +82,7 @@ constexpr std::int32_t kPresetXLarge_NumKvHeads = 16;
 constexpr std::int32_t kPresetXLarge_IntermediateDim = 8192;
 constexpr std::int32_t kPresetXLarge_MaxSeqLen = 2048;
 constexpr std::int32_t kPresetXLarge_VocabSize = 32000;
-constexpr float kPresetXLarge_LearningRate = 1e-4f;
+constexpr float kPresetXLarge_LearningRate = 1e-4f;    // 0.0001
 constexpr std::int32_t kPresetXLarge_BatchSize = 2;
 
 // ========== Model Egitim Durumu ==========

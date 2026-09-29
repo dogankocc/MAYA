@@ -1,5 +1,7 @@
 #include "llm/model/transformer.hpp"
 
+#include <cmath>
+
 #include "llm/model/params.hpp"
 #include "llm/model/rms_norm.hpp"
 #include "llm/tensor/ops.hpp"
@@ -21,12 +23,20 @@ TransformerModel::TransformerModel(const ModelConfig& config) : config_(config) 
 }
 
 void TransformerModel::ResetParameters(std::mt19937& rng) {
-  InitTensorXavier(tokenEmbedding_, rng);
+  // nanoGPT / LLaMA: N(0, 0.02); residual out/down scaled by 1/sqrt(2L)
+  constexpr float kInitStd = 0.02f;
+  InitTensorNormal(tokenEmbedding_, rng, kInitStd);
   finalNormWeight_.Fill(1.0f);
-  InitTensorXavier(lmHeadWeight_, rng);
+  InitTensorNormal(lmHeadWeight_, rng, kInitStd);
 
   for (TransformerBlock& layer : layers_) {
     layer.ResetParameters(rng);
+  }
+
+  const float residualStd = kInitStd / std::sqrt(2.0f * static_cast<float>(std::max<std::size_t>(config_.numLayers, 1)));
+  for (TransformerBlock& layer : layers_) {
+    InitTensorNormal(layer.AttentionModule().OutputProjection().WeightMutable(), rng, residualStd);
+    InitTensorNormal(layer.FfnModule().DownProjection().WeightMutable(), rng, residualStd);
   }
 }
 
