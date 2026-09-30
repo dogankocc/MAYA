@@ -97,10 +97,10 @@ Status AdamW::Step(ParameterList& parameters) {
       const Scalar mHat = moment1[element] / biasCorrection1;
       const Scalar vHat = moment2[element] / biasCorrection2;
       const Scalar update = config_.learningRate * mHat / (std::sqrt(vHat) + config_.epsilon);
-      (*parameter.tensor)[element] -= update;
       if (applyDecay) {
         (*parameter.tensor)[element] -= config_.learningRate * config_.weightDecay * (*parameter.tensor)[element];
       }
+      (*parameter.tensor)[element] -= update;
     }
   }
 

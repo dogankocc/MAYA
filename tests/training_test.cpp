@@ -1,4 +1,6 @@
 #include <gtest/gtest.h>
+#include <algorithm>
+#include <cmath>
 #include <filesystem>
 #include <random>
 
@@ -6,6 +8,7 @@
 #include "llm/training/autograd.hpp"
 #include "llm/training/loss.hpp"
 #include "llm/training/trainer.hpp"
+#include "llm/training/transformer_train.hpp"
 
 namespace {
 
@@ -56,6 +59,85 @@ TEST(AutogradTest, LinearBackwardWeightMatchesLayout) {
   EXPECT_FLOAT_EQ(gradWeight.At({1, 0}), 0.f);
   EXPECT_FLOAT_EQ(gradWeight.At({1, 1}), 1.f);
   EXPECT_FLOAT_EQ(gradWeight.At({1, 2}), 0.f);
+}
+
+TEST(TransformerAutogradTest, TrainingGradientsMatchFiniteDifferencesForEveryParameter) {
+  llm::ModelConfig config;
+  config.vocabSize = 9;
+  config.hiddenDim = 4;
+  config.numLayers = 1;
+  config.numHeads = 2;
+  config.numKvHeads = 1;
+  config.intermediateDim = 5;
+  config.maxSeqLen = 6;
+
+  llm::model::TransformerModel model(config);
+  std::mt19937 rng(17);
+  model.ResetParameters(rng);
+  llm::training::ParameterList parameters;
+  llm::training::ParameterList::CollectFromModel(model, parameters);
+  const std::vector<llm::TokenId> tokens = {1, 2, 3, 4};
+
+  auto objective = [&]() {
+    llm::Tensor logits;
+    EXPECT_TRUE(model.Forward(tokens, logits).IsOk());
+    llm::Tensor nextTokenLogits = llm::Tensor::Zeros(llm::Shape{tokens.size() - 1, config.vocabSize});
+    for (std::size_t row = 0; row + 1 < tokens.size(); ++row) {
+      for (std::size_t vocab = 0; vocab < config.vocabSize; ++vocab) {
+        nextTokenLogits.At({static_cast<llm::Index>(row), static_cast<llm::Index>(vocab)}) =
+            logits.At({static_cast<llm::Index>(row), static_cast<llm::Index>(vocab)});
+      }
+    }
+    llm::Tensor unusedGradient;
+    return llm::training::CrossEntropyLoss(
+        nextTokenLogits, std::vector<llm::TokenId>(tokens.begin() + 1, tokens.end()), unusedGradient);
+  };
+
+  float analyticLoss = 0.0f;
+  ASSERT_TRUE(llm::training::RunTrainBackward(model, parameters, tokens, analyticLoss).IsOk());
+  EXPECT_NEAR(analyticLoss, objective(), 1e-5f);
+
+  constexpr float kEpsilon = 1e-3f;
+  constexpr float kAbsoluteTolerance = 4e-3f;
+  constexpr float kRelativeTolerance = 3e-2f;
+  for (std::size_t parameterIndex = 0; parameterIndex < parameters.Size(); ++parameterIndex) {
+    auto& parameter = parameters.Parameters()[parameterIndex];
+    for (llm::Index element = 0; element < static_cast<llm::Index>(parameter.tensor->Numel()); ++element) {
+      const float original = (*parameter.tensor)[element];
+      (*parameter.tensor)[element] = original + kEpsilon;
+      const float lossPlus = objective();
+      (*parameter.tensor)[element] = original - kEpsilon;
+      const float lossMinus = objective();
+      (*parameter.tensor)[element] = original;
+
+      const float numericGradient = (lossPlus - lossMinus) / (2.0f * kEpsilon);
+      const float analyticGradient = parameter.grad[element];
+      const float tolerance = kAbsoluteTolerance +
+                              kRelativeTolerance * std::max(std::abs(numericGradient), std::abs(analyticGradient));
+      EXPECT_NEAR(analyticGradient, numericGradient, tolerance)
+          << "parameter=" << parameterIndex << " element=" << element;
+    }
+  }
+}
+
+TEST(AdamWTest, AppliesDecoupledWeightDecayToPreUpdateWeight) {
+  llm::Tensor weight = llm::Tensor::FromBuffer(llm::Shape{1, 1}, {2.0f});
+  llm::training::ParameterList parameters;
+  parameters.Add(weight);
+  parameters.Parameters()[0].grad[0] = 1.0f;
+
+  llm::training::AdamWConfig config;
+  config.learningRate = 0.1f;
+  config.beta1 = 0.9f;
+  config.beta2 = 0.999f;
+  config.epsilon = 1e-8f;
+  config.weightDecay = 0.2f;
+  llm::training::AdamW optimizer(config);
+  ASSERT_TRUE(optimizer.Step(parameters).IsOk());
+
+  const float expected = 2.0f * (1.0f - config.learningRate * config.weightDecay) -
+                         config.learningRate / (1.0f + config.epsilon);
+  EXPECT_NEAR(weight[0], expected, 1e-6f);
 }
 
 TEST(TrainerTest, LossDecreasesOverSteps) {

@@ -4,6 +4,7 @@
 #include <atomic>
 #include <filesystem>
 #include <fstream>
+#include <iterator>
 #include <string>
 #include <vector>
 
@@ -53,6 +54,7 @@ protected:
     config.model.intermediateDim = 32;
     config.model.maxSeqLen = 16;
     config.steps = 4;
+    config.batchSize = 1;
     config.checkpointInterval = 1;
     config.workDir = (root_ / "work").generic_string();
     config.outputModelPath = (root_ / "out.ckpt").generic_string();
@@ -78,6 +80,32 @@ TEST_F(TrainingSessionTest, SessionKeyIsStableAndSensitiveToInputs) {
   TrainingJobConfig deeper = base;
   deeper.model.numLayers = 2;
   EXPECT_NE(ComputeSessionKey(base), ComputeSessionKey(deeper));
+
+  TrainingJobConfig differentRope = base;
+  differentRope.model.ropeTheta *= 2.0f;
+  EXPECT_NE(ComputeSessionKey(base), ComputeSessionKey(differentRope));
+
+  TrainingJobConfig differentNormEps = base;
+  differentNormEps.model.normEps *= 2.0f;
+  EXPECT_NE(ComputeSessionKey(base), ComputeSessionKey(differentNormEps));
+
+  std::ifstream originalInput(datasetA_, std::ios::binary);
+  const std::string originalContents((std::istreambuf_iterator<char>(originalInput)),
+                                     std::istreambuf_iterator<char>());
+  ASSERT_FALSE(originalContents.empty());
+  const std::string beforeContentChange = ComputeSessionKey(base);
+  std::string alteredContents = originalContents;
+  const std::size_t promptPos = alteredContents.find("python nedir");
+  ASSERT_NE(promptPos, std::string::npos);
+  alteredContents.replace(promptPos, std::string("python nedir").size(), "golang nedir");
+  ASSERT_EQ(alteredContents.size(), originalContents.size());
+  {
+    std::ofstream output(datasetA_, std::ios::binary | std::ios::trunc);
+    ASSERT_TRUE(output.is_open());
+    output << alteredContents;
+  }
+  // Same path and byte length must still produce a different key when content changes.
+  EXPECT_NE(beforeContentChange, ComputeSessionKey(base));
 
   TrainingJobConfig differentInterval = base;
   differentInterval.checkpointInterval = 50;

@@ -79,6 +79,25 @@ constexpr std::size_t kReferenceBatchSize = 16; // preset LR'ler bu batch için 
   return errorCode ? 0 : static_cast<std::uint64_t>(size);
 }
 
+[[nodiscard]] std::uint64_t FileContentHashOrZero(const std::string& path) {
+  std::ifstream input(path, std::ios::binary);
+  if (!input.is_open()) {
+    return 0;
+  }
+
+  std::uint64_t hash = 14695981039346656037ULL;
+  char buffer[8192];
+  while (input) {
+    input.read(buffer, sizeof(buffer));
+    const std::streamsize count = input.gcount();
+    for (std::streamsize index = 0; index < count; ++index) {
+      hash ^= static_cast<unsigned char>(buffer[index]);
+      hash *= 1099511628211ULL;
+    }
+  }
+  return input.bad() ? 0 : hash;
+}
+
 [[nodiscard]] std::string Fnv1a64Hex(const std::string& text) {
   std::uint64_t hash = 14695981039346656037ULL;
   for (const unsigned char ch : text) {
@@ -135,7 +154,7 @@ constexpr std::size_t kReferenceBatchSize = 16; // preset LR'ler bu batch için 
 [[nodiscard]] bool SameArchitecture(const ModelConfig& lhs, const ModelConfig& rhs) {
   return lhs.numLayers == rhs.numLayers && lhs.hiddenDim == rhs.hiddenDim && lhs.numHeads == rhs.numHeads &&
          lhs.numKvHeads == rhs.numKvHeads && lhs.intermediateDim == rhs.intermediateDim &&
-         lhs.maxSeqLen == rhs.maxSeqLen;
+         lhs.maxSeqLen == rhs.maxSeqLen && lhs.ropeTheta == rhs.ropeTheta && lhs.normEps == rhs.normEps;
 }
 
 [[nodiscard]] Result<std::vector<DialogueSample>> LoadSamples(const TrainingJobConfig& config) {
@@ -233,12 +252,14 @@ TrainingJobConfig DefaultTrainingJobConfig() {
 std::string ComputeSessionKey(const TrainingJobConfig& config) {
   std::ostringstream canonical;
   for (const std::string& path : SortedDatasets(config)) {
-    canonical << path << ':' << FileSizeOrZero(path) << ';';
+    canonical << path << ':' << FileSizeOrZero(path) << ':' << std::hex << FileContentHashOrZero(path) << std::dec
+              << ';';
   }
   const ModelConfig& model = config.model;
   canonical << "builtin=" << config.includeBuiltin << ";layers=" << model.numLayers << ";hidden=" << model.hiddenDim
             << ";heads=" << model.numHeads << ";kv=" << model.numKvHeads << ";inter=" << model.intermediateDim
-            << ";seq=" << model.maxSeqLen << ";vocab=" << model.vocabSize << ";steps=" << config.steps
+            << ";seq=" << model.maxSeqLen << ";rope=" << FloatText(model.ropeTheta)
+            << ";norm_eps=" << FloatText(model.normEps) << ";vocab=" << model.vocabSize << ";steps=" << config.steps
             << ";batch=" << config.batchSize
             << ";lr=" << FloatText(config.learningRate) << ";seed=" << config.seed;
   return Fnv1a64Hex(canonical.str());
