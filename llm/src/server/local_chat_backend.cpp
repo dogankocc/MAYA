@@ -52,11 +52,6 @@ namespace llm::server {
 			return response;
 		}
 		response.text = training::SanitizeGeneratedResponse(result.Value());
-		if (training::IsLowQualityResponse(response.text)) {
-			response.text = kUnknownTopicReply;
-			response.allowAutoLearn = false;
-			return response;
-		}
 
 		response.allowAutoLearn = true;
 		return response;

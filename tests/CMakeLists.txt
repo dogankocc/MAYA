@@ -17,6 +17,7 @@ add_executable(llm_core_tests
   tensor_ops_test.cpp
   tokenizer_vocabulary_test.cpp
   tokenizer_bpe_test.cpp
+  tokenizer_data_roundtrip_test.cpp
   model_transformer_test.cpp
   model_checkpoint_test.cpp
   inference_engine_test.cpp

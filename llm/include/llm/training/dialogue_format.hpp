@@ -15,10 +15,6 @@ namespace llm::training {
 
 [[nodiscard]] std::string SanitizeGeneratedResponse(std::string text);
 
-[[nodiscard]] bool IsLowQualityResponse(const std::string& text);
-
-[[nodiscard]] bool IsFallbackResponse(const std::string& text);
-
 [[nodiscard]] std::string FallbackResponseForIntent(const std::string& intent, const std::string& userPrompt);
 
 } // namespace llm::training

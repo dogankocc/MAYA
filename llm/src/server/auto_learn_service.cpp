@@ -81,28 +81,22 @@ void AutoLearnService::OnChatCompleted(const std::string& prompt, const std::str
     return;
   }
 
-  if (training::IsLowQualityResponse(response) || training::IsFallbackResponse(response)) {
-    return;
-  }
-
-  {
-    std::lock_guard<std::mutex> lock(mutex_);
-    EnsureParentDirectory(std::filesystem::path(config_.corpusPath));
-    std::ofstream corpus(config_.corpusPath, std::ios::app);
-    if (!corpus.is_open()) {
+  std::lock_guard<std::mutex> lock(mutex_);
+  EnsureParentDirectory(std::filesystem::path(config_.corpusPath));
+  std::ofstream corpus(config_.corpusPath, std::ios::app);
+  if (!corpus.is_open()) {
       lastError_ = "failed to append auto-learn corpus";
       return;
-    }
-
-    corpus << training::FormatDialogueJsonlLine(intent, prompt, response);
-    pendingSamples_ += 1;
-    totalSaved_ += 1;
-    lastError_.clear();
-    SaveStateLocked();
-
-    std::cout << "[auto-learn] saved sample pending=" << pendingSamples_ << " total=" << totalSaved_ << '\n';
-    MaybeStartTrainingLocked();
   }
+
+  corpus << training::FormatDialogueJsonlLine(intent, prompt, response);
+  pendingSamples_ += 1;
+  totalSaved_ += 1;
+  lastError_.clear();
+  SaveStateLocked();
+
+  std::cout << "[auto-learn] saved sample pending=" << pendingSamples_ << " total=" << totalSaved_ << '\n';
+  MaybeStartTrainingLocked();
 }
 
 std::filesystem::path AutoLearnService::ResolveInputCheckpoint() const {
