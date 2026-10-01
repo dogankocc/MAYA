@@ -32,12 +32,45 @@ TEST(BpeTokenizerTest, EncodeDecodeRoundTrip) {
   EXPECT_NE(decoded.find("araba"), std::string::npos);
 }
 
+TEST(BpeTokenizerTest, TurkishUtf8TextRoundTripsExactly) {
+  llm::BpeTokenizer tokenizer;
+  const std::string text = "Ben senin yaratt" "\xC4\xB1" "n bir yapay zeka asistan" "\xC4\xB1" "y" "\xC4\xB1" "m.";
+  const std::string TurkishWord = "nas" "\xC4\xB1" "ls" "\xC4\xB1" "n";
+  ASSERT_TRUE(tokenizer.Train(text + " " + TurkishWord + " merhaba", 128).IsOk());
+
+  EXPECT_EQ(tokenizer.Decode(tokenizer.Encode(text)), text);
+  EXPECT_EQ(tokenizer.Decode(tokenizer.Encode(TurkishWord)), TurkishWord);
+}
+
+TEST(BpeTokenizerTest, DecodeKeepsValidByteSequencesAndRepairsInvalidUtf8) {
+  llm::BpeTokenizer tokenizer;
+  ASSERT_TRUE(tokenizer.Train("\xC3\xA9", 32).IsOk());
+
+  const std::vector<llm::TokenId> encoded = tokenizer.Encode("\xC3\xA9");
+  ASSERT_EQ(encoded.size(), 3U);  // word-start marker plus one reversible symbol for each UTF-8 byte
+
+  EXPECT_EQ(tokenizer.Decode(encoded), "\xC3\xA9");
+  EXPECT_EQ(tokenizer.Decode({encoded.back()}), "\xEF\xBF\xBD");
+  EXPECT_EQ(tokenizer.Decode({llm::kUnkTokenId}), "\xEF\xBF\xBD");
+}
+
+TEST(BpeTokenizerTest, ByteFallbackRoundTripsCharactersAbsentFromTrainingCorpus) {
+  llm::BpeTokenizer tokenizer;
+  ASSERT_TRUE(tokenizer.Train("ascii corpus", 300).IsOk());
+
+  const std::string unseenCharacter = "\xF0\x9F\xA6\x8A";
+  const std::vector<llm::TokenId> ids = tokenizer.Encode(unseenCharacter);
+  ASSERT_FALSE(ids.empty());
+  EXPECT_TRUE(std::all_of(ids.begin(), ids.end(), [](const llm::TokenId id) { return id != llm::kUnkTokenId; }));
+  EXPECT_EQ(tokenizer.Decode(ids), unseenCharacter);
+}
+
 TEST(BpeTokenizerTest, MergesMostFrequentPairFirstAndReportsProgress) {
   llm::BpeTokenizer tokenizer;
   const std::string corpus = "ab ab ab ab ab ab cd cd cd xyz";
   std::vector<std::size_t> reported;
   const auto progress = [&reported](const std::size_t vocab, const std::size_t) { reported.push_back(vocab); };
-  const std::size_t base = llm::kSpecialTokenCount + 1 + 7;
+  constexpr std::size_t base = llm::kSpecialTokenCount + 1 + 256;
   ASSERT_TRUE(tokenizer.Train(corpus, base + 1, progress).IsOk());
 
   const auto& vocab = tokenizer.GetVocabulary();
@@ -63,6 +96,36 @@ std::vector<std::pair<std::string, std::string>> ReferenceMerges(const std::stri
     }
     return it->second;
   };
+
+  // The trainer assigns byte-symbol IDs in ascending byte order before reading words.
+  for (int byte = 0; byte < 256; ++byte) {
+    const bool direct = (byte >= 0x21 && byte <= 0x7E) || (byte >= 0xA1 && byte <= 0xAC) ||
+                        (byte >= 0xAE && byte <= 0xFF);
+    int codePoint = byte;
+    if (!direct) {
+      int extra = 0;
+      for (int prior = 0; prior < byte; ++prior) {
+        const bool priorDirect = (prior >= 0x21 && prior <= 0x7E) || (prior >= 0xA1 && prior <= 0xAC) ||
+                                 (prior >= 0xAE && prior <= 0xFF);
+        if (!priorDirect) {
+          ++extra;
+        }
+      }
+      codePoint = 256 + extra;
+    }
+    std::string symbol;
+    if (codePoint <= 0x7F) {
+      symbol.push_back(static_cast<char>(codePoint));
+    } else if (codePoint <= 0x7FF) {
+      symbol.push_back(static_cast<char>(0xC0 | (codePoint >> 6)));
+      symbol.push_back(static_cast<char>(0x80 | (codePoint & 0x3F)));
+    } else {
+      symbol.push_back(static_cast<char>(0xE0 | (codePoint >> 12)));
+      symbol.push_back(static_cast<char>(0x80 | ((codePoint >> 6) & 0x3F)));
+      symbol.push_back(static_cast<char>(0x80 | (codePoint & 0x3F)));
+    }
+    (void)symbolId(symbol);
+  }
 
   std::vector<std::vector<int>> words;
   std::istringstream stream(corpus);
@@ -145,14 +208,8 @@ TEST(BpeTokenizerTest, IncrementalTrainerMatchesNaiveReference) {
   ASSERT_EQ(reference.size(), static_cast<std::size_t>(kMerges));
 
   llm::BpeTokenizer tokenizer;
-  const std::size_t baseVocab = llm::BpeTokenizer().GetVocabulary().Size();
-  std::string uniqueChars;
-  for (const char ch : corpus) {
-    if (ch != ' ' && uniqueChars.find(ch) == std::string::npos) {
-      uniqueChars += ch;
-    }
-  }
-  ASSERT_TRUE(tokenizer.Train(corpus, baseVocab + uniqueChars.size() + kMerges).IsOk());
+  constexpr std::size_t baseVocab = llm::kSpecialTokenCount + 1 + 256;
+  ASSERT_TRUE(tokenizer.Train(corpus, baseVocab + kMerges).IsOk());
 
   const auto saved = SavedMerges(tokenizer);
   ASSERT_GE(saved.size(), reference.size());
@@ -169,7 +226,7 @@ TEST(BpeTokenizerTest, LargeRepetitiveCorpusTrainsQuickly) {
   }
   llm::BpeTokenizer tokenizer;
   std::size_t reports = 0;
-  ASSERT_TRUE(tokenizer.Train(corpus, 256, [&reports](std::size_t, std::size_t) { ++reports; }).IsOk());
+  ASSERT_TRUE(tokenizer.Train(corpus, 512, [&reports](std::size_t, std::size_t) { ++reports; }).IsOk());
   EXPECT_GT(reports, 0U);
   EXPECT_EQ(tokenizer.Decode(tokenizer.Encode("kod yazmak guzel")), "kod yazmak guzel");
   EXPECT_LE(tokenizer.Encode("kelime").size(), 2U);

@@ -1,6 +1,7 @@
 #include "llm/tokenizer/bpe_tokenizer.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
@@ -24,6 +25,150 @@ std::string MergeKey(const std::string& left, const std::string& right) {
 
 [[nodiscard]] bool IsWordSeparator(const char ch) {
   return ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r' || ch == '\v' || ch == '\f';
+}
+
+[[nodiscard]] bool IsContinuationByte(const unsigned char ch) { return (ch & 0xC0U) == 0x80U; }
+
+[[nodiscard]] std::size_t ValidUtf8SequenceLength(const std::string& text, const std::size_t offset) {
+  const auto byte = static_cast<unsigned char>(text[offset]);
+  const std::size_t remaining = text.size() - offset;
+  if (byte <= 0x7FU) {
+    return 1;
+  }
+  if (byte >= 0xC2U && byte <= 0xDFU && remaining >= 2 &&
+      IsContinuationByte(static_cast<unsigned char>(text[offset + 1]))) {
+    return 2;
+  }
+  if (byte >= 0xE0U && byte <= 0xEFU && remaining >= 3) {
+    const auto second = static_cast<unsigned char>(text[offset + 1]);
+    const auto third = static_cast<unsigned char>(text[offset + 2]);
+    const bool validSecond = byte == 0xE0U ? second >= 0xA0U && second <= 0xBFU
+                             : byte == 0xEDU ? second >= 0x80U && second <= 0x9FU
+                                             : IsContinuationByte(second);
+    if (validSecond && IsContinuationByte(third)) {
+      return 3;
+    }
+  }
+  if (byte >= 0xF0U && byte <= 0xF4U && remaining >= 4) {
+    const auto second = static_cast<unsigned char>(text[offset + 1]);
+    const auto third = static_cast<unsigned char>(text[offset + 2]);
+    const auto fourth = static_cast<unsigned char>(text[offset + 3]);
+    const bool validSecond = byte == 0xF0U ? second >= 0x90U && second <= 0xBFU
+                             : byte == 0xF4U ? second >= 0x80U && second <= 0x8FU
+                                             : IsContinuationByte(second);
+    if (validSecond && IsContinuationByte(third) && IsContinuationByte(fourth)) {
+      return 4;
+    }
+  }
+  return 0;
+}
+
+void AppendByteLevelText(const std::string& encodedText, std::string& outputBytes);
+[[nodiscard]] std::string ReplaceInvalidUtf8(const std::string& text);
+
+[[nodiscard]] std::uint32_t DecodeUtf8CodePoint(const std::string& text, const std::size_t offset,
+                                                const std::size_t sequenceLength) {
+  const auto byte = [&text](const std::size_t index) { return static_cast<unsigned char>(text[index]); };
+  if (sequenceLength == 1) {
+    return byte(offset);
+  }
+  if (sequenceLength == 2) {
+    return ((byte(offset) & 0x1FU) << 6U) | (byte(offset + 1) & 0x3FU);
+  }
+  if (sequenceLength == 3) {
+    return ((byte(offset) & 0x0FU) << 12U) | ((byte(offset + 1) & 0x3FU) << 6U) |
+           (byte(offset + 2) & 0x3FU);
+  }
+  return ((byte(offset) & 0x07U) << 18U) | ((byte(offset + 1) & 0x3FU) << 12U) |
+         ((byte(offset + 2) & 0x3FU) << 6U) | (byte(offset + 3) & 0x3FU);
+}
+
+[[nodiscard]] std::string EncodeUtf8CodePoint(const std::uint32_t codePoint) {
+  std::string encoded;
+  if (codePoint <= 0x7FU) {
+    encoded.push_back(static_cast<char>(codePoint));
+  } else if (codePoint <= 0x7FFU) {
+    encoded.push_back(static_cast<char>(0xC0U | (codePoint >> 6U)));
+    encoded.push_back(static_cast<char>(0x80U | (codePoint & 0x3FU)));
+  } else if (codePoint <= 0xFFFFU) {
+    encoded.push_back(static_cast<char>(0xE0U | (codePoint >> 12U)));
+    encoded.push_back(static_cast<char>(0x80U | ((codePoint >> 6U) & 0x3FU)));
+    encoded.push_back(static_cast<char>(0x80U | (codePoint & 0x3FU)));
+  } else {
+    encoded.push_back(static_cast<char>(0xF0U | (codePoint >> 18U)));
+    encoded.push_back(static_cast<char>(0x80U | ((codePoint >> 12U) & 0x3FU)));
+    encoded.push_back(static_cast<char>(0x80U | ((codePoint >> 6U) & 0x3FU)));
+    encoded.push_back(static_cast<char>(0x80U | (codePoint & 0x3FU)));
+  }
+  return encoded;
+}
+
+struct ByteUnicodeMap {
+  std::array<std::string, 256> byteToSymbol;
+  std::unordered_map<std::uint32_t, unsigned char> codePointToByte;
+
+  ByteUnicodeMap() {
+    std::array<bool, 256> direct{};
+    for (std::uint32_t byte = 0x21U; byte <= 0x7EU; ++byte) {
+      direct[byte] = true;
+    }
+    for (std::uint32_t byte = 0xA1U; byte <= 0xACU; ++byte) {
+      direct[byte] = true;
+    }
+    for (std::uint32_t byte = 0xAEU; byte <= 0xFFU; ++byte) {
+      direct[byte] = true;
+    }
+
+    std::uint32_t extra = 0;
+    for (std::uint32_t byte = 0; byte < 256; ++byte) {
+      const std::uint32_t codePoint = direct[byte] ? byte : 256U + extra++;
+      byteToSymbol[byte] = EncodeUtf8CodePoint(codePoint);
+      codePointToByte.emplace(codePoint, static_cast<unsigned char>(byte));
+    }
+  }
+};
+
+[[nodiscard]] const ByteUnicodeMap& GetByteUnicodeMap() {
+  static const ByteUnicodeMap map;
+  return map;
+}
+
+void AppendByteLevelText(const std::string& encodedText, std::string& outputBytes) {
+  const ByteUnicodeMap& map = GetByteUnicodeMap();
+  for (std::size_t offset = 0; offset < encodedText.size();) {
+    const std::size_t sequenceLength = ValidUtf8SequenceLength(encodedText, offset);
+    if (sequenceLength == 0) {
+      outputBytes += "\xEF\xBF\xBD";
+      ++offset;
+      continue;
+    }
+
+    const std::uint32_t codePoint = DecodeUtf8CodePoint(encodedText, offset, sequenceLength);
+    const auto it = map.codePointToByte.find(codePoint);
+    if (it == map.codePointToByte.end()) {
+      outputBytes += "\xEF\xBF\xBD";
+    } else {
+      outputBytes.push_back(static_cast<char>(it->second));
+    }
+    offset += sequenceLength;
+  }
+}
+
+[[nodiscard]] std::string ReplaceInvalidUtf8(const std::string& text) {
+  constexpr std::string_view kReplacement{"\xEF\xBF\xBD", 3};
+  std::string valid;
+  valid.reserve(text.size());
+  for (std::size_t offset = 0; offset < text.size();) {
+    const std::size_t sequenceLength = ValidUtf8SequenceLength(text, offset);
+    if (sequenceLength == 0) {
+      valid.append(kReplacement);
+      ++offset;
+      continue;
+    }
+    valid.append(text, offset, sequenceLength);
+    offset += sequenceLength;
+  }
+  return valid;
 }
 
 template <typename Fn>
@@ -119,6 +264,10 @@ private:
   void BuildWords(const std::string& corpus) {
     std::unordered_map<std::string_view, std::uint32_t> wordIndex;
     const SymbolId startId = AddSymbol(kWordStartToken);
+    const ByteUnicodeMap& byteMap = GetByteUnicodeMap();
+    for (const std::string& symbol : byteMap.byteToSymbol) {
+      AddSymbol(symbol);
+    }
     ForEachWord(corpus, [&](const std::string_view token) {
       const auto [it, inserted] = wordIndex.emplace(token, static_cast<std::uint32_t>(words_.size()));
       if (!inserted) {
@@ -129,8 +278,8 @@ private:
       word.count = 1;
       word.symbols.reserve(token.size() + 1);
       word.symbols.push_back(startId);
-      for (const char ch : token) {
-        word.symbols.push_back(AddSymbol(std::string(1, ch)));
+      for (const char byte : token) {
+        word.symbols.push_back(AddSymbol(byteMap.byteToSymbol[static_cast<unsigned char>(byte)]));
       }
       words_.push_back(std::move(word));
     });
@@ -376,8 +525,9 @@ std::vector<TokenId> BpeTokenizer::EncodeWord(const std::string& word) const {
   std::vector<std::string> symbols;
   symbols.reserve(word.size() + 1);
   symbols.push_back(kWordStartToken);
-  for (const char ch : word) {
-    symbols.emplace_back(1, ch);
+  const ByteUnicodeMap& byteMap = GetByteUnicodeMap();
+  for (const char byte : word) {
+    symbols.push_back(byteMap.byteToSymbol[static_cast<unsigned char>(byte)]);
   }
 
   std::vector<TokenId> ids;
@@ -422,7 +572,11 @@ std::string BpeTokenizer::Decode(const std::vector<TokenId>& ids) const {
   std::string text;
 
   for (const TokenId id : ids) {
-    if (id == kPadTokenId || id == kBosTokenId || id == kEosTokenId || id == kUnkTokenId) {
+    if (id == kPadTokenId || id == kBosTokenId || id == kEosTokenId) {
+      continue;
+    }
+    if (id == kUnkTokenId) {
+      text += "\xEF\xBF\xBD";
       continue;
     }
 
@@ -435,14 +589,14 @@ std::string BpeTokenizer::Decode(const std::vector<TokenId>& ids) const {
       if (!text.empty()) {
         text.push_back(' ');
       }
-      text.append(token, kWordStartTokenLength, std::string::npos);
+      AppendByteLevelText(token.substr(kWordStartTokenLength), text);
       continue;
     }
 
-    text += token;
+    AppendByteLevelText(token, text);
   }
 
-  return text;
+  return ReplaceInvalidUtf8(text);
 }
 
 Status BpeTokenizer::Save(const std::string& directory) const {
@@ -480,6 +634,14 @@ Result<BpeTokenizer> BpeTokenizer::Load(const std::string& directory) {
   auto vocabulary = Vocabulary::Load(vocabPath.string());
   if (!vocabulary.IsOk()) {
     return Result<BpeTokenizer>::Fail(vocabulary.GetError().code, vocabulary.GetError().message);
+  }
+
+  const ByteUnicodeMap& byteMap = GetByteUnicodeMap();
+  for (const std::string& symbol : byteMap.byteToSymbol) {
+    if (!vocabulary.Value().Contains(symbol)) {
+      return Result<BpeTokenizer>::Fail(ErrorCode::InvalidArgument,
+                                        "tokenizer vocabulary is missing the required byte-level alphabet");
+    }
   }
 
   std::ifstream merges(mergesPath.string());
