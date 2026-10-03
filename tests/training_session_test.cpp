@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "llm/training/training_session.hpp"
+#include "llm/training/chat_corpus.hpp"
 
 namespace {
 
@@ -16,6 +17,23 @@ namespace fs = std::filesystem;
 using llm::training::ComputeSessionKey;
 using llm::training::TrainingJobConfig;
 using llm::training::TrainingRunner;
+using llm::training::ResolveTrainingSteps;
+
+TEST(TrainingStepSemantics, ExplicitStepsAreOptimizerUpdatesAndAutoScalesByBatch) {
+  EXPECT_EQ(ResolveTrainingSteps(37, 100, 8), 37U);
+  EXPECT_EQ(ResolveTrainingSteps(0, 100, 8), 2250U);
+  EXPECT_EQ(ResolveTrainingSteps(0, 3, 8), 2250U);
+}
+
+TEST(TrainingCorpusTest, ProfileSampleOverridesSameBuiltInPromptAfterNormalization) {
+  const std::vector<llm::training::DialogueSample> builtin = {
+      {.intent = "greeting", .prompt = "merhaba", .response = "Yerleşik cevap."}};
+  const std::vector<llm::training::DialogueSample> profile = {
+      {.intent = "tanışma", .prompt = "Merhaba", .response = "Merhaba nasılsın?"}};
+  const auto merged = llm::training::MergeDialogueCorpora(builtin, profile);
+  ASSERT_EQ(merged.size(), 1U);
+  EXPECT_EQ(merged.front().response, "Merhaba nasılsın?");
+}
 
 class TrainingSessionTest : public ::testing::Test {
 protected:
@@ -46,13 +64,13 @@ protected:
     TrainingJobConfig config;
     config.datasetPaths = datasets;
     config.includeBuiltin = false;
-    config.model.vocabSize = 96;
+    config.model.vocabSize = 300;
     config.model.hiddenDim = 16;
     config.model.numLayers = 1;
     config.model.numHeads = 2;
     config.model.numKvHeads = 1;
     config.model.intermediateDim = 32;
-    config.model.maxSeqLen = 16;
+    config.model.maxSeqLen = 64;
     config.steps = 4;
     config.batchSize = 1;
     config.checkpointInterval = 1;

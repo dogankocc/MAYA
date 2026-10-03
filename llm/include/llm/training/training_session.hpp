@@ -21,7 +21,7 @@ struct TrainingJobConfig {
   std::vector<std::string> datasetPaths;
   bool includeBuiltin = true;
   ModelConfig model;
-  std::size_t steps = 0;             // 0 = auto (derived from sample count)
+  std::size_t steps = 0;             // optimizer updates; 0 = auto
   float learningRate = 0.0f;         // 0 = auto
   std::size_t checkpointInterval = 1; // save temp checkpoint every N steps
   std::size_t batchSize = 8;         // mini-batch size (samples per gradient update)
@@ -34,7 +34,7 @@ struct TrainingJobConfig {
 
 struct TrainingSessionState {
   std::string sessionKey;
-  std::size_t completedSteps = 0;
+  std::size_t completedSteps = 0;    // completed optimizer updates
   std::size_t totalSteps = 0;
   float lastLoss = 0.0f;
   std::size_t sampleCount = 0;
@@ -68,7 +68,8 @@ struct TrainingProgress {
 [[nodiscard]] Status SaveSessionState(const TrainingSessionState& state);
 void ClearWorkDir(const std::string& workDir);
 
-[[nodiscard]] std::size_t ResolveTrainingSteps(std::size_t requestedSteps, std::size_t sampleCount);
+[[nodiscard]] std::size_t ResolveTrainingSteps(std::size_t requestedSteps, std::size_t sampleCount,
+                                               std::size_t batchSize = 1);
 [[nodiscard]] float ResolveLearningRate(float requestedRate, std::size_t sampleCount);
 
 // Runs a job end-to-end with periodic temp checkpoints. If a compatible session

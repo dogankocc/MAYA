@@ -41,8 +41,7 @@ constexpr std::size_t kReferenceBatchSize = 16; // preset LR'ler bu batch için 
 [[nodiscard]] float ScheduleLearningRate(const std::size_t optStep, const std::size_t totalOptSteps,
                                          const float peakLr) {
   const float minLr = peakLr * 0.1f;
-  const std::size_t warmup =
-      std::max<std::size_t>(50, std::min<std::size_t>(totalOptSteps / 20, totalOptSteps / 2));
+  const std::size_t warmup = std::max<std::size_t>(1, std::min<std::size_t>(50, totalOptSteps / 20));
   if (optStep == 0 || totalOptSteps == 0) {
     return minLr;
   }
@@ -251,6 +250,9 @@ TrainingJobConfig DefaultTrainingJobConfig() {
 
 std::string ComputeSessionKey(const TrainingJobConfig& config) {
   std::ostringstream canonical;
+  // Version the data and optimization semantics so incompatible temp sessions never resume.
+  canonical << "dialogue_format=3;target_mask=assistant_only_v1;corpus_merge=normalized_override_v1;"
+               "training_steps=optimizer_updates_v1;";
   for (const std::string& path : SortedDatasets(config)) {
     canonical << path << ':' << FileSizeOrZero(path) << ':' << std::hex << FileContentHashOrZero(path) << std::dec
               << ';';
@@ -384,11 +386,14 @@ void ClearWorkDir(const std::string& workDir) {
   fs::remove_all(workDir, errorCode);
 }
 
-std::size_t ResolveTrainingSteps(const std::size_t requestedSteps, const std::size_t sampleCount) {
+std::size_t ResolveTrainingSteps(const std::size_t requestedSteps, const std::size_t sampleCount,
+                                 const std::size_t batchSize) {
   if (requestedSteps > 0) {
     return requestedSteps;
   }
-  return std::min(kMaxAutoSteps, std::max(kMinAutoSteps, sampleCount * 2));
+  const std::size_t sampleSteps = std::min(kMaxAutoSteps, std::max(kMinAutoSteps, sampleCount * 2));
+  const std::size_t effectiveBatchSize = std::max<std::size_t>(1, batchSize);
+  return (sampleSteps + effectiveBatchSize - 1) / effectiveBatchSize;
 }
 
 float ResolveLearningRate(const float requestedRate, const std::size_t sampleCount) {
@@ -432,6 +437,11 @@ Status TrainingRunner::Run(const std::atomic<bool>& stopRequested) {
   if (!configStatus.IsOk()) {
     return configStatus;
   }
+  if (config_.model.vocabSize < kMinimumBpeVocabularySize) {
+    return Status::Fail(ErrorCode::InvalidArgument,
+                        "vocab_size must be at least " + std::to_string(kMinimumBpeVocabularySize));
+  }
+  const std::size_t batchSize = std::max(config_.batchSize, std::size_t(1));
 
   const auto samplesResult = LoadSamples(config_);
   if (!samplesResult.IsOk()) {
@@ -440,6 +450,17 @@ Status TrainingRunner::Run(const std::atomic<bool>& stopRequested) {
   const std::vector<DialogueSample>& samples = samplesResult.Value();
   Log("Samples: " + std::to_string(samples.size()) + " unique (" + std::to_string(config_.datasetPaths.size()) +
       " dataset file(s)" + (config_.includeBuiltin ? ", built-in dialogues included" : "") + ")");
+  Log("[training-config] requested_optimizer_updates=" + std::to_string(config_.steps) +
+      " batch_size=" + std::to_string(batchSize) + " learning_rate=" + FloatText(config_.learningRate) +
+      " layers=" + std::to_string(config_.model.numLayers) + " hidden_dim=" +
+      std::to_string(config_.model.hiddenDim) + " heads=" + std::to_string(config_.model.numHeads) +
+      " kv_heads=" + std::to_string(config_.model.numKvHeads) + " intermediate_dim=" +
+      std::to_string(config_.model.intermediateDim) + " max_seq_len=" + std::to_string(config_.model.maxSeqLen) +
+      " target_vocab=" + std::to_string(config_.model.vocabSize) + " include_builtin=" +
+      (config_.includeBuiltin ? "true" : "false"));
+  for (const std::string& dataset : SortedDatasets(config_)) {
+    Log("[training-config] dataset=" + dataset);
+  }
 
   const std::string sessionKey = ComputeSessionKey(config_);
   const std::string checkpointPath = SessionCheckpointPath(config_.workDir);
@@ -500,7 +521,7 @@ Status TrainingRunner::Run(const std::atomic<bool>& stopRequested) {
 
     state_ = TrainingSessionState{};
     state_.sessionKey = sessionKey;
-    state_.totalSteps = ResolveTrainingSteps(config_.steps, samples.size());
+    state_.totalSteps = ResolveTrainingSteps(config_.steps, samples.size(), batchSize);
     state_.sampleCount = samples.size();
     state_.config = config_;
   } else {
@@ -518,7 +539,7 @@ Status TrainingRunner::Run(const std::atomic<bool>& stopRequested) {
 
   const ModelConfig& modelConfig = model->GetConfig();
   Log("Tokenizing " + std::to_string(samples.size()) + " samples");
-  std::vector<std::vector<TokenId>> batches =
+  std::vector<TrainingExample> batches =
       BuildTrainingBatches(tokenizer, samples, modelConfig.maxSeqLen, [this](const std::size_t done, const std::size_t total) {
         Log("Tokenized " + std::to_string(done) + "/" + std::to_string(total));
       });
@@ -528,7 +549,6 @@ Status TrainingRunner::Run(const std::atomic<bool>& stopRequested) {
 
   TrainerConfig trainerConfig;
   const float configuredLr = ResolveLearningRate(config_.learningRate, samples.size());
-  const std::size_t batchSize = std::max(config_.batchSize, std::size_t(1));
   // Batch 1 ile preset LR (batch 16 için) kullanılırsa loss warmup sonrası patlar.
   // sqrt scaling: batch küçülünce LR orantılı düşer.
   const float peakLearningRate =
@@ -538,20 +558,17 @@ Status TrainingRunner::Run(const std::atomic<bool>& stopRequested) {
   if (resuming) {
     RestoreOptimizer(trainer);
   }
-  const std::size_t totalOptSteps =
-      std::max<std::size_t>(1, (state_.totalSteps + batchSize - 1) / batchSize);
-  Log("Training: batches=" + std::to_string(batches.size()) + " steps=" + std::to_string(state_.totalSteps) +
+  const std::size_t totalOptSteps = std::max<std::size_t>(1, state_.totalSteps);
+  Log("Training: batches=" + std::to_string(batches.size()) + " optimizer_updates=" + std::to_string(state_.totalSteps) +
       " vocab=" + std::to_string(modelConfig.vocabSize) + " layers=" + std::to_string(modelConfig.numLayers) +
       " hidden=" + std::to_string(modelConfig.hiddenDim) + " batch_size=" + std::to_string(batchSize) +
       " peak_lr=" + FloatText(peakLearningRate) + " (configured=" + FloatText(configuredLr) + ")" +
-      " opt_steps≈" + std::to_string(totalOptSteps) +
       " checkpoint_every=" + std::to_string(config_.checkpointInterval));
 
   BatchScheduler scheduler(batches.size(), config_.seed);
   std::size_t lastSavedStep = state_.completedSteps;
 
-  // Each iteration processes one mini-batch (batchSize samples)
-  // state_.completedSteps tracks number of SAMPLES processed, not weight updates
+  // Each configured step is one optimizer update over batchSize training samples.
   while (state_.completedSteps < state_.totalSteps) {
     if (stopRequested.load()) {
       stopped_ = true;
@@ -562,9 +579,10 @@ Status TrainingRunner::Run(const std::atomic<bool>& stopRequested) {
     float batchLoss = 0.0f;
     std::size_t samplesProcessed = 0;
     bool firstInBatch = true;
+    const std::size_t firstSampleIndex = state_.completedSteps * batchSize;
 
-    for (std::size_t i = 0; i < batchSize && state_.completedSteps < state_.totalSteps; ++i) {
-      const std::size_t sampleIdx = state_.completedSteps;
+    for (std::size_t i = 0; i < batchSize; ++i) {
+      const std::size_t sampleIdx = firstSampleIndex + i;
       float sampleLoss = 0.0f;
 
       // Use AccumulateGradients: first sample zeros grad, subsequent ones accumulate
@@ -576,7 +594,6 @@ Status TrainingRunner::Run(const std::atomic<bool>& stopRequested) {
 
       batchLoss += sampleLoss;
       samplesProcessed++;
-      state_.completedSteps++;
       firstInBatch = false;
     }
 
@@ -605,11 +622,12 @@ Status TrainingRunner::Run(const std::atomic<bool>& stopRequested) {
     if (!stepStatus.IsOk()) {
       return stepStatus;
     }
+    state_.completedSteps++;
 
     batchLoss /= static_cast<float>(samplesProcessed);
     state_.lastLoss = batchLoss;
 
-    // Checkpoint: check if we crossed a checkpoint boundary in sample count
+    // Checkpoint at optimizer-update boundaries.
     const bool checkpoint =
         (config_.checkpointInterval > 0 &&
          (lastSavedStep / config_.checkpointInterval) < (state_.completedSteps / config_.checkpointInterval)) ||
@@ -626,8 +644,8 @@ Status TrainingRunner::Run(const std::atomic<bool>& stopRequested) {
     Report(TrainingProgress{.step = state_.completedSteps, .totalSteps = state_.totalSteps, .loss = batchLoss,
                             .checkpointSaved = checkpoint});
 
-    // Log every kLogEverySteps samples
-    const std::size_t prevLogBoundary = (state_.completedSteps - samplesProcessed) / kLogEverySteps;
+    // Log every kLogEverySteps optimizer updates.
+    const std::size_t prevLogBoundary = (state_.completedSteps - 1) / kLogEverySteps;
     const std::size_t currLogBoundary = state_.completedSteps / kLogEverySteps;
     if (currLogBoundary > prevLogBoundary || state_.completedSteps == state_.totalSteps) {
       Log("step " + std::to_string(state_.completedSteps) + "/" + std::to_string(state_.totalSteps) +

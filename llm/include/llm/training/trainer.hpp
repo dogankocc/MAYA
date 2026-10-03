@@ -9,6 +9,7 @@
 #include "llm/model/transformer.hpp"
 #include "llm/training/adamw.hpp"
 #include "llm/training/parameter.hpp"
+#include "llm/training/chat_corpus.hpp"
 
 namespace llm::training {
 
@@ -23,12 +24,14 @@ public:
 
   // Single sample with immediate optimizer step (backward-compatible)
   [[nodiscard]] Status TrainStep(const std::vector<TokenId>& tokens, float& loss);
+  [[nodiscard]] Status TrainStep(const TrainingExample& example, float& loss);
 
   [[nodiscard]] Status TrainEpoch(const std::vector<std::vector<TokenId>>& batches, float& averageLoss);
 
   // Mini-batch support: accumulate gradients without optimizer step
   // First call in batch should pass zeroGrad=true, subsequent calls pass false
   [[nodiscard]] Status AccumulateGradients(const std::vector<TokenId>& tokens, float& loss, bool zeroGrad = false);
+  [[nodiscard]] Status AccumulateGradients(const TrainingExample& example, float& loss, bool zeroGrad = false);
 
   // Apply accumulated gradients with optimizer step
   [[nodiscard]] Status ApplyStep();

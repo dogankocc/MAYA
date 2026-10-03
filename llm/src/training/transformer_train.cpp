@@ -395,8 +395,14 @@ Status BackwardBlock(model::TransformerBlock& block, const ModelConfig& config, 
 
 } // namespace
 
-Status RunTrainBackward(model::TransformerModel& model, ParameterList& parameters, const std::vector<TokenId>& tokens, float& loss, bool zeroGrad) {
-  if (tokens.size() < 2) {
+Status RunTrainBackward(model::TransformerModel& model, ParameterList& parameters, const std::vector<TokenId>& tokens,
+                        float& loss, bool zeroGrad) {
+  return RunTrainBackward(model, parameters, tokens, loss, zeroGrad, 1);
+}
+
+Status RunTrainBackward(model::TransformerModel& model, ParameterList& parameters, const std::vector<TokenId>& tokens,
+                        float& loss, bool zeroGrad, const std::size_t firstTargetToken) {
+  if (tokens.size() < 2 || firstTargetToken == 0 || firstTargetToken >= tokens.size()) {
     return Status::Fail(ErrorCode::InvalidArgument, "training requires at least two tokens");
   }
 
@@ -444,12 +450,14 @@ Status RunTrainBackward(model::TransformerModel& model, ParameterList& parameter
     return logitsStatus;
   }
 
-  const std::vector<TokenId> targets(tokens.begin() + 1, tokens.end());
-  Tensor logitsForLoss = Tensor::Zeros(Shape{seqLen - 1, config.vocabSize});
-  for (Dimension row = 0; row < seqLen - 1; ++row) {
+  const std::vector<TokenId> targets(tokens.begin() + static_cast<std::ptrdiff_t>(firstTargetToken), tokens.end());
+  const Dimension firstLogitRow = static_cast<Dimension>(firstTargetToken - 1);
+  const Dimension lossRows = static_cast<Dimension>(targets.size());
+  Tensor logitsForLoss = Tensor::Zeros(Shape{lossRows, config.vocabSize});
+  for (Dimension row = 0; row < lossRows; ++row) {
     for (Dimension vocab = 0; vocab < config.vocabSize; ++vocab) {
       logitsForLoss.At({static_cast<Index>(row), static_cast<Index>(vocab)}) =
-          cache.logits.At({static_cast<Index>(row), static_cast<Index>(vocab)});
+          cache.logits.At({static_cast<Index>(firstLogitRow + row), static_cast<Index>(vocab)});
     }
   }
 
@@ -457,9 +465,9 @@ Status RunTrainBackward(model::TransformerModel& model, ParameterList& parameter
   loss = CrossEntropyLoss(logitsForLoss, targets, gradLogits);
 
   Tensor fullGradLogits = Tensor::Zeros(cache.logits.GetShape());
-  for (Dimension row = 0; row < seqLen - 1; ++row) {
+  for (Dimension row = 0; row < lossRows; ++row) {
     for (Dimension vocab = 0; vocab < config.vocabSize; ++vocab) {
-      fullGradLogits.At({static_cast<Index>(row), static_cast<Index>(vocab)}) =
+      fullGradLogits.At({static_cast<Index>(firstLogitRow + row), static_cast<Index>(vocab)}) =
           gradLogits.At({static_cast<Index>(row), static_cast<Index>(vocab)});
     }
   }

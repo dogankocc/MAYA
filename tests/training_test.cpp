@@ -9,6 +9,7 @@
 #include "llm/training/loss.hpp"
 #include "llm/training/trainer.hpp"
 #include "llm/training/transformer_train.hpp"
+#include "llm/training/chat_corpus.hpp"
 
 namespace {
 
@@ -34,6 +35,23 @@ TEST(TrainingLossTest, CrossEntropyMatchesManualSoftmax) {
   EXPECT_GT(loss, 0.0f);
   EXPECT_LT(loss, 2.0f);
   EXPECT_NEAR(gradLogits.At({0, 1}), 0.0f, 0.5f);
+}
+
+TEST(TrainingCorpusTest, DialogueBatchMasksPromptAndTargetsAssistantResponse) {
+  llm::BpeTokenizer tokenizer;
+  ASSERT_TRUE(tokenizer.Train("intent greeting user merhaba assistant nasilsin", 300).IsOk());
+  const std::vector<llm::training::DialogueSample> samples = {
+      {.intent = "greeting", .prompt = "Merhaba", .response = "Merhaba nasılsın?"}};
+  const auto examples = llm::training::BuildTrainingBatches(tokenizer, samples, 128);
+  ASSERT_EQ(examples.size(), 1U);
+  const auto& example = examples.front();
+  ASSERT_GT(example.firstTargetToken, 0U);
+  ASSERT_LT(example.firstTargetToken, example.tokens.size() - 1);
+  EXPECT_EQ(example.tokens.back(), llm::kEosTokenId);
+  const std::vector<llm::TokenId> responseTokens(example.tokens.begin() +
+                                                     static_cast<std::ptrdiff_t>(example.firstTargetToken),
+                                                 example.tokens.end() - 1);
+  EXPECT_EQ(tokenizer.Decode(responseTokens), samples.front().response);
 }
 
 // Linear forward: y = x @ W^T. Weight grad must match W layout [out, in], not W^T.

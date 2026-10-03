@@ -8,6 +8,7 @@
 #include <filesystem>
 #include <fstream>
 #include <sstream>
+#include <unordered_map>
 #include <unordered_set>
 
 namespace llm::training {
@@ -67,11 +68,12 @@ Result<std::vector<DialogueSample>> LoadDialogueCorpus(const std::string& path) 
     }
 
     if (jsonlFormat) {
-      const auto parsed = ParseJsonlDialogueLine(line);
+      const auto parsed = ParseJsonlDialogueLineSamples(line);
       if (!parsed.IsOk()) {
         return Result<std::vector<DialogueSample>>::Fail(parsed.GetError().code, parsed.GetError().message);
       }
-      samples.push_back(parsed.Value());
+      const auto& parsedSamples = parsed.Value();
+      samples.insert(samples.end(), parsedSamples.begin(), parsedSamples.end());
       continue;
     }
 
@@ -132,15 +134,21 @@ Result<std::vector<DialogueSample>> LoadDialogueCorpusDirectory(const std::strin
 
 std::vector<DialogueSample> MergeDialogueCorpora(std::vector<DialogueSample> base,
                                                  const std::vector<DialogueSample>& extra) {
-  std::unordered_set<std::string> seen;
-  seen.reserve(base.size() + extra.size());
-  for (const DialogueSample& sample : base) {
-    seen.insert(sample.prompt);
+  // Key by the actual normalized inference prompt. User data must replace a built-in
+  // answer for the same input; keeping both teaches contradictory targets.
+  std::unordered_map<std::string, std::size_t> positions;
+  positions.reserve(base.size() + extra.size());
+  for (std::size_t index = 0; index < base.size(); ++index) {
+    positions.emplace(BuildInferencePrompt(ResolveIntent(base[index]), base[index].prompt, base[index].system), index);
   }
-
   for (const DialogueSample& sample : extra) {
-    if (seen.insert(sample.prompt).second) {
+    const std::string key = BuildInferencePrompt(ResolveIntent(sample), sample.prompt, sample.system);
+    const auto existing = positions.find(key);
+    if (existing == positions.end()) {
+      positions.emplace(key, base.size());
       base.push_back(sample);
+    } else {
+      base[existing->second] = sample;
     }
   }
 
@@ -330,29 +338,34 @@ std::vector<DialogueSample> DefaultDialogueCorpus() {
 std::string BuildTokenizerCorpus(const std::vector<DialogueSample>& samples) {
   std::ostringstream stream;
   for (const DialogueSample& sample : samples) {
-    if (!sample.system.empty()) {
-      stream << sample.system << ' ';
-    }
-    stream << sample.prompt << ' ' << sample.response << ' ';
+    stream << BuildTrainingSequence(sample) << ' ';
   }
   return stream.str();
 }
 
-std::vector<std::vector<TokenId>> BuildTrainingBatches(const BpeTokenizer& tokenizer,
+std::vector<TrainingExample> BuildTrainingBatches(const BpeTokenizer& tokenizer,
                                                        const std::vector<DialogueSample>& samples,
                                                        const std::size_t maxSeqLen,
                                                        const BatchProgressFn& progress) {
   constexpr std::size_t kProgressEvery = 5000;
-  std::vector<std::vector<TokenId>> batches;
+  std::vector<TrainingExample> batches;
   batches.reserve(samples.size());
   for (std::size_t index = 0; index < samples.size(); ++index) {
-    std::vector<TokenId> tokens =
-        tokenizer.EncodeWithSpecialTokens(BuildTrainingSequence(samples[index]), true, false);
+    const DialogueSample& sample = samples[index];
+    const std::string prompt = BuildInferencePrompt(ResolveIntent(sample), sample.prompt, sample.system);
+    TrainingExample example;
+    example.tokens = tokenizer.EncodeWithSpecialTokens(prompt, true, false);
+    example.firstTargetToken = example.tokens.size();
+    const std::vector<TokenId> responseTokens = tokenizer.Encode(sample.response);
+    example.tokens.insert(example.tokens.end(), responseTokens.begin(), responseTokens.end());
+    example.tokens.push_back(kEosTokenId);
+    std::vector<TokenId>& tokens = example.tokens;
     if (tokens.size() > maxSeqLen) {
       tokens.resize(maxSeqLen);
+      tokens.back() = kEosTokenId;
     }
-    if (tokens.size() >= 2) {
-      batches.push_back(std::move(tokens));
+    if (tokens.size() >= 2 && example.firstTargetToken < tokens.size() - 1) {
+      batches.push_back(std::move(example));
     }
     if (progress && (index + 1) % kProgressEvery == 0) {
       progress(index + 1, samples.size());

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <functional>
+#include <cstddef>
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -14,6 +15,9 @@
 namespace llm {
 
 using MergePair = std::pair<std::string, std::string>;
+
+// 4 special tokens + word-boundary token + 256 byte fallback tokens + capacity for one merge.
+constexpr std::size_t kMinimumBpeVocabularySize = kSpecialTokenCount + 258;
 
 class BpeTokenizer {
 public:

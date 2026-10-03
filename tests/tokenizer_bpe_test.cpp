@@ -14,15 +14,22 @@
 TEST(BpeTokenizerTest, TrainBuildsMerges) {
   llm::BpeTokenizer tokenizer;
   const std::string corpus = "araba araba araba araba araba araba";
-  ASSERT_TRUE(tokenizer.Train(corpus, 32).IsOk());
+  ASSERT_TRUE(tokenizer.Train(corpus, 262).IsOk());
   EXPECT_GT(tokenizer.GetVocabulary().Size(), llm::kSpecialTokenCount);
+}
+
+TEST(BpeTokenizerTest, RejectsTargetBelowByteAlphabetInsteadOfSilentlyTrainingZeroMerges) {
+  llm::BpeTokenizer tokenizer;
+  const auto status = tokenizer.Train("merhaba merhaba", 256);
+  EXPECT_FALSE(status.IsOk());
+  EXPECT_NE(status.GetError().message.find("at least 262"), std::string::npos);
 }
 
 TEST(BpeTokenizerTest, EncodeDecodeRoundTrip) {
   llm::BpeTokenizer tokenizer;
   const std::string corpus =
       "araba araba araba test test test model model model model";
-  ASSERT_TRUE(tokenizer.Train(corpus, 64).IsOk());
+  ASSERT_TRUE(tokenizer.Train(corpus, 300).IsOk());
 
   const std::string text = "araba";
   const std::vector<llm::TokenId> ids = tokenizer.Encode(text);
@@ -36,7 +43,7 @@ TEST(BpeTokenizerTest, TurkishUtf8TextRoundTripsExactly) {
   llm::BpeTokenizer tokenizer;
   const std::string text = "Ben senin yaratt" "\xC4\xB1" "n bir yapay zeka asistan" "\xC4\xB1" "y" "\xC4\xB1" "m.";
   const std::string TurkishWord = "nas" "\xC4\xB1" "ls" "\xC4\xB1" "n";
-  ASSERT_TRUE(tokenizer.Train(text + " " + TurkishWord + " merhaba", 128).IsOk());
+  ASSERT_TRUE(tokenizer.Train(text + " " + TurkishWord + " merhaba", 300).IsOk());
 
   EXPECT_EQ(tokenizer.Decode(tokenizer.Encode(text)), text);
   EXPECT_EQ(tokenizer.Decode(tokenizer.Encode(TurkishWord)), TurkishWord);
@@ -44,7 +51,7 @@ TEST(BpeTokenizerTest, TurkishUtf8TextRoundTripsExactly) {
 
 TEST(BpeTokenizerTest, DecodeKeepsValidByteSequencesAndRepairsInvalidUtf8) {
   llm::BpeTokenizer tokenizer;
-  ASSERT_TRUE(tokenizer.Train("\xC3\xA9", 32).IsOk());
+  ASSERT_TRUE(tokenizer.Train("\xC3\xA9", 262).IsOk());
 
   const std::vector<llm::TokenId> encoded = tokenizer.Encode("\xC3\xA9");
   ASSERT_EQ(encoded.size(), 3U);  // word-start marker plus one reversible symbol for each UTF-8 byte
@@ -235,7 +242,7 @@ TEST(BpeTokenizerTest, LargeRepetitiveCorpusTrainsQuickly) {
 
 TEST(BpeTokenizerTest, EncodeWithSpecialTokens) {
   llm::BpeTokenizer tokenizer;
-  ASSERT_TRUE(tokenizer.Train("hello hello hello", 32).IsOk());
+  ASSERT_TRUE(tokenizer.Train("hello hello hello", 262).IsOk());
 
   const auto ids = tokenizer.EncodeWithSpecialTokens("hello", true, true);
   ASSERT_GE(ids.size(), 3U);
@@ -245,7 +252,7 @@ TEST(BpeTokenizerTest, EncodeWithSpecialTokens) {
 
 TEST(BpeTokenizerTest, SaveAndLoadRoundTrip) {
   llm::BpeTokenizer tokenizer;
-  ASSERT_TRUE(tokenizer.Train("merhaba dunya merhaba dunya", 48).IsOk());
+  ASSERT_TRUE(tokenizer.Train("merhaba dunya merhaba dunya", 262).IsOk());
 
   const std::string directory = "test_tokenizer";
   ASSERT_TRUE(tokenizer.Save(directory).IsOk());

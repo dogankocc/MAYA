@@ -16,5 +16,6 @@ namespace llm::training {
 [[nodiscard]] std::vector<std::pair<std::string, std::string>> ExtractRoleContentPairs(const std::string& json);
 
 [[nodiscard]] Result<DialogueSample> ParseJsonlDialogueLine(const std::string& line);
+[[nodiscard]] Result<std::vector<DialogueSample>> ParseJsonlDialogueLineSamples(const std::string& line);
 
 } // namespace llm::training

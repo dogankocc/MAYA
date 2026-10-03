@@ -437,8 +437,10 @@ void BpeTokenizer::AddMerge(const std::string& left, const std::string& right) {
 }
 
 Status BpeTokenizer::Train(const std::string& corpus, std::size_t targetVocabSize, const TrainProgressFn& progress) {
-  if (targetVocabSize < kSpecialTokenCount + 1) {
-    return Status::Fail(ErrorCode::InvalidArgument, "target vocabulary size is too small");
+  if (targetVocabSize < kMinimumBpeVocabularySize) {
+    return Status::Fail(ErrorCode::InvalidArgument,
+                        "target vocabulary must be at least " + std::to_string(kMinimumBpeVocabularySize) +
+                        " (special tokens and byte-fallback vocabulary plus room for merges)");
   }
 
   vocabulary_ = Vocabulary();

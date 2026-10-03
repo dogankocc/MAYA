@@ -28,6 +28,13 @@ bool PromptMentionsUserCar(const std::string& userPrompt) {
   return ContainsKeyword(text, {"aria", "araban", "araba", "arabam", "fiat", "punto", "multiAir", "otomobil"});
 }
 
+std::string NormalizeUserPrompt(std::string value) {
+  for (char& ch : value) {
+    ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+  }
+  return value;
+}
+
 } // namespace
 
 namespace llm::training {
@@ -41,12 +48,7 @@ std::string ResolveIntent(const DialogueSample& sample) {
 
 std::string BuildTrainingSequence(const DialogueSample& sample) {
   const std::string intent = ResolveIntent(sample);
-  std::string sequence = "intent: " + intent + ".";
-  if (!sample.system.empty()) {
-    sequence += " system: " + sample.system;
-  }
-  sequence += " user: " + sample.prompt + " assistant : " + sample.response;
-  return sequence;
+  return BuildInferencePrompt(intent, sample.prompt, sample.system) + sample.response;
 }
 
 std::string BuildInferencePrompt(const std::string& intent, const std::string& userPrompt,
@@ -57,7 +59,7 @@ std::string BuildInferencePrompt(const std::string& intent, const std::string& u
   if (!systemPrompt.empty()) {
     sequence += " system: " + systemPrompt;
   }
-  sequence += " user: " + userPrompt + " assistant: ";
+  sequence += " user: " + NormalizeUserPrompt(userPrompt) + " assistant: ";
   return sequence;
 }
 

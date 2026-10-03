@@ -48,8 +48,11 @@ Status RunFineTuneOnCorpus(const FineTuneOptions& options) {
   }
 
   model::TransformerModel model = modelResult.Value();
+  if (tokenizer.GetVocabulary().Size() != model.GetConfig().vocabSize) {
+    return Status::Fail(ErrorCode::InvalidArgument, "tokenizer vocabulary size does not match checkpoint");
+  }
   const std::size_t maxSeqLen = model.GetConfig().maxSeqLen;
-  std::vector<std::vector<TokenId>> batches = BuildTrainingBatches(tokenizer, samples, maxSeqLen);
+  std::vector<TrainingExample> batches = BuildTrainingBatches(tokenizer, samples, maxSeqLen);
   if (batches.empty()) {
     return Status::Fail(ErrorCode::InvalidArgument, "no training batches for fine-tune");
   }

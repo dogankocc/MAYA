@@ -70,7 +70,7 @@ void PrintUsage() {
             << "  MAYA train-server [--port N] [--host H] [--chat-url URL] [--python CMD]\n"
             << "  MAYA train [--output <model.ckpt>] [--tokenizer <dir>]\n"
             << "                      [--corpus-dir <dir>] [--corpus <file>] [--steps N|auto]\n"
-            << "                      [--vocab N] [--corpus-only] [--checkpoint-every N]\n"
+            << "                      [--vocab N] [--batch-size N] [--corpus-only] [--checkpoint-every N]\n"
             << "  MAYA demo\n"
             << "  MAYA chat --model <path> --tokenizer <dir>\n"
             << "  MAYA agent --model <path> --tokenizer <dir>\n"
@@ -169,6 +169,7 @@ llm::training::TrainingJobConfig BuildTrainConfigFromArgs(int argc, char** argv)
   config.steps = GetSizeArg(argc, argv, "--steps", 0);
   config.model.vocabSize = GetSizeArg(argc, argv, "--vocab", config.model.vocabSize);
   config.checkpointInterval = GetSizeArg(argc, argv, "--checkpoint-every", 1);
+  config.batchSize = GetSizeArg(argc, argv, "--batch-size", config.batchSize);
 
   const std::string corpusDir = GetArg(argc, argv, "--corpus-dir", "data/corpus");
   if (config.includeBuiltin && corpusDir != "none" && corpusDir != "skip") {

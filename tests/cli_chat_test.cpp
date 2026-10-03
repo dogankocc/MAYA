@@ -9,7 +9,7 @@
 
 TEST(ChatSessionTest, CompleteReturnsText) {
   llm::BpeTokenizer tokenizer;
-  ASSERT_TRUE(tokenizer.Train("hello world test", 64).IsOk());
+  ASSERT_TRUE(tokenizer.Train("hello world test", 300).IsOk());
   const std::size_t vocabSize = tokenizer.GetVocabulary().Size();
 
   llm::ModelConfig config;

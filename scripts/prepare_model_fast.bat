@@ -20,12 +20,12 @@ if not exist "%PROFILE%" (
 cd /d "%ROOT%"
 
 echo.
-echo ===== HIZLI EGITIM (temel sohbet + profil, 5 katman, Release) =====
-echo Veri: yerlesik sohbet + data\corpus\profile_dogan.jsonl
-echo 1000 step, vocab 1024. Tam egitim: scripts\prepare_model.bat
+echo ===== PROFIL EZBER TESTI (batch 1, 1000 guncelleme) =====
+echo Veri: yalnizca data\corpus\profile_dogan.jsonl
+echo Tam egitim: scripts\prepare_model.bat
 echo.
 
-"%EXE%" train --output model.ckpt --tokenizer tokenizer_data --corpus-dir none --corpus data/corpus/profile_dogan.jsonl --steps 1000 --vocab 1024
+"%EXE%" train --output model.ckpt --tokenizer tokenizer_data --corpus-dir none --corpus data/corpus/profile_dogan.jsonl --corpus-only --steps 1000 --batch-size 1 --vocab 1024
 if errorlevel 1 (
   echo EGITIM BASARISIZ.
   exit /b 1

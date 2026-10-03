@@ -41,6 +41,10 @@ Status ChatSession::Load(const std::string& modelPath, const std::string& tokeni
     return Status::Fail(tokenizer.GetError().code, tokenizer.GetError().message);
   }
 
+  if (tokenizer.Value().GetVocabulary().Size() != model.Value().GetConfig().vocabSize) {
+    return Status::Fail(ErrorCode::InvalidArgument, "tokenizer vocabulary size does not match checkpoint");
+  }
+
   model_ = std::move(model.Value());
   tokenizer_ = std::move(tokenizer.Value());
   engine_.emplace(*model_);

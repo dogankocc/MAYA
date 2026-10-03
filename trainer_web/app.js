@@ -22,12 +22,13 @@ const I18N = {
     preset: 'Hazır boyut',
     custom: 'Özel',
     layers: 'Katman', hidden: 'Gizli boyut', heads: 'Head', kvHeads: 'KV head', intermediate: 'FFN boyut',
-    maxSeq: 'Maks. dizi', vocab: 'Sözcük (vocab)', steps: 'Adım (0 = otomatik)', lr: 'Öğrenme hızı (0 = otomatik)',
+    maxSeq: 'Maks. dizi', vocab: 'Sözcük (vocab)', steps: 'Eğitim adımı (0 = otomatik)', lr: 'Öğrenme hızı (0 = otomatik)',
+    stepBatchHint: 'Her adımda batch size kadar örnek işlenir.',
     ckptEvery: 'Checkpoint aralığı (adım)', seed: 'Seed',
     estimate: '~{params} parametre · FP32 {fp32} · INT8 {int8} · geçici (model + AdamW m/v) {temp} · her {every} adımda diske yazılır',
     start: 'Eğitimi başlat', stop: 'Durdur',
-    progress: 'İlerleme', step: 'Adım', loss: 'Loss', elapsed: 'Geçen süre', eta: 'Kalan (tahmini)', speed: 'Hız',
-    resumedFrom: 'Devam adımı',
+    progress: 'İlerleme', step: 'Eğitim adımı', loss: 'Loss', elapsed: 'Geçen süre', eta: 'Kalan (tahmini)', speed: 'Adım hızı',
+    resumedFrom: 'Başlangıç adımı',
     storage: 'Depolama', freeDisk: 'Boş disk', tempCkpt: 'Geçici checkpoint', estimatedCkpt: 'Tahmini yeni ckpt',
     tokenizer: 'Tokenizer',
     diskWarning: 'Tahmini checkpoint boyutu boş disk alanından büyük! Yer açmadan eğitim tamamlanamaz.',
@@ -60,12 +61,13 @@ const I18N = {
     preset: 'Preset',
     custom: 'Custom',
     layers: 'Layers', hidden: 'Hidden dim', heads: 'Heads', kvHeads: 'KV heads', intermediate: 'FFN dim',
-    maxSeq: 'Max seq len', vocab: 'Vocab', steps: 'Steps (0 = auto)', lr: 'Learning rate (0 = auto)',
+    maxSeq: 'Max seq len', vocab: 'Vocab', steps: 'Training steps (0 = auto)', lr: 'Learning rate (0 = auto)',
+    stepBatchHint: 'Each step processes the configured batch size.',
     ckptEvery: 'Checkpoint interval (steps)', seed: 'Seed',
     estimate: '~{params} params · FP32 {fp32} · INT8 {int8} · temp (model + AdamW m/v) {temp} · written to disk every {every} step(s)',
     start: 'Start training', stop: 'Stop',
-    progress: 'Progress', step: 'Step', loss: 'Loss', elapsed: 'Elapsed', eta: 'ETA', speed: 'Speed',
-    resumedFrom: 'Resumed from',
+    progress: 'Progress', step: 'Training step', loss: 'Loss', elapsed: 'Elapsed', eta: 'ETA', speed: 'Steps/s',
+    resumedFrom: 'Starting step',
     storage: 'Storage', freeDisk: 'Free disk', tempCkpt: 'Temp checkpoint', estimatedCkpt: 'Estimated new ckpt',
     tokenizer: 'Tokenizer',
     diskWarning: 'Estimated checkpoint is larger than free disk space! Free up space first.',
@@ -176,6 +178,9 @@ const fillConfig = (config) => {
 };
 
 const validateConfig = (config) => {
+  if (config.vocab_size < 262) return state.lang === 'tr'
+    ? 'Tokenizer vocab en az 262 olmalı (özel tokenlar ve byte alfabesi için). Öğrenilen merge sayısı tekrarlanan metne bağlıdır.'
+    : 'Tokenizer vocab must be at least 262 for special tokens and byte fallback. Learned merge count depends on repeated text.';
   if (config.hidden_dim % config.num_heads !== 0) return t('errHidden');
   if (config.num_heads % config.num_kv_heads !== 0) return t('errKv');
   if (!config.datasets.length && !config.include_builtin) return t('errNoData');
@@ -295,10 +300,11 @@ const renderStatus = (status) => {
   $('statStep').textContent = `${status.step.toLocaleString()} / ${status.total_steps.toLocaleString()}`;
   $('statLoss').textContent = status.step ? status.loss.toFixed(4) : '–';
   $('statElapsed').textContent = status.elapsed_seconds ? formatDuration(status.elapsed_seconds) : '–';
-  $('statSpeed').textContent = status.steps_per_second ? `${status.steps_per_second.toFixed(2)} step/s` : '–';
+  $('statSpeed').textContent = status.steps_per_second ? `${status.steps_per_second.toFixed(2)} steps/s` : '–';
   $('statEta').textContent = busy && status.steps_per_second
     ? formatDuration((status.total_steps - status.step) / status.steps_per_second) : '–';
-  $('statResumed').textContent = status.resumed_from ? status.resumed_from.toLocaleString() : '–';
+  $('statResumed').textContent = Number.isFinite(Number(status.resumed_from))
+    ? Number(status.resumed_from).toLocaleString() : '–';
   $('statusMessage').textContent = status.message || '';
 
   const storage = status.storage;

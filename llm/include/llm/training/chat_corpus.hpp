@@ -1,6 +1,7 @@
 #pragma once
 
 #include <functional>
+#include <cstddef>
 #include <string>
 #include <vector>
 
@@ -30,9 +31,15 @@ struct DialogueSample {
 
 using BatchProgressFn = std::function<void(std::size_t done, std::size_t total)>;
 
-[[nodiscard]] std::vector<std::vector<TokenId>> BuildTrainingBatches(const BpeTokenizer& tokenizer,
-                                                                     const std::vector<DialogueSample>& samples,
-                                                                     std::size_t maxSeqLen,
-                                                                     const BatchProgressFn& progress = nullptr);
+struct TrainingExample {
+  std::vector<TokenId> tokens;
+  // Token index of the first assistant response token; prompt tokens provide context only.
+  std::size_t firstTargetToken = 1;
+};
+
+[[nodiscard]] std::vector<TrainingExample> BuildTrainingBatches(const BpeTokenizer& tokenizer,
+                                                                const std::vector<DialogueSample>& samples,
+                                                                std::size_t maxSeqLen,
+                                                                const BatchProgressFn& progress = nullptr);
 
 } // namespace llm::training

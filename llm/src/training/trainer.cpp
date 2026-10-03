@@ -19,8 +19,18 @@ Status Trainer::TrainStep(const std::vector<TokenId>& tokens, float& loss) {
   return optimizer_.Step(parameters_);
 }
 
+Status Trainer::TrainStep(const TrainingExample& example, float& loss) {
+  const Status status = RunTrainBackward(model_, parameters_, example.tokens, loss, true, example.firstTargetToken);
+  if (!status.IsOk()) return status;
+  return optimizer_.Step(parameters_);
+}
+
 Status Trainer::AccumulateGradients(const std::vector<TokenId>& tokens, float& loss, bool zeroGrad) {
   return RunTrainBackward(model_, parameters_, tokens, loss, zeroGrad);
+}
+
+Status Trainer::AccumulateGradients(const TrainingExample& example, float& loss, bool zeroGrad) {
+  return RunTrainBackward(model_, parameters_, example.tokens, loss, zeroGrad, example.firstTargetToken);
 }
 
 Status Trainer::ApplyStep() {

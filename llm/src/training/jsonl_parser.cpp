@@ -109,42 +109,41 @@ std::vector<std::pair<std::string, std::string>> ExtractRoleContentPairs(const s
   return pairs;
 }
 
-Result<DialogueSample> ParseJsonlDialogueLine(const std::string& line) {
+Result<std::vector<DialogueSample>> ParseJsonlDialogueLineSamples(const std::string& line) {
   const std::string trimmed = Trim(line);
   if (trimmed.empty() || trimmed[0] == '#') {
-    return Result<DialogueSample>::Fail(ErrorCode::InvalidArgument, "empty jsonl line");
+    return Result<std::vector<DialogueSample>>::Fail(ErrorCode::InvalidArgument, "empty jsonl line");
   }
 
   if (trimmed[0] != '{') {
-    return Result<DialogueSample>::Fail(ErrorCode::InvalidArgument, "jsonl line must start with '{'");
+    return Result<std::vector<DialogueSample>>::Fail(ErrorCode::InvalidArgument, "jsonl line must start with '{'");
   }
 
   const auto pairs = ExtractRoleContentPairs(trimmed);
   if (!pairs.empty()) {
     std::string system;
     std::string user;
-    std::string assistant;
+    std::vector<DialogueSample> samples;
+    const std::string intent = ExtractJsonStringField(trimmed, "intent").value_or(std::string{});
     for (const auto& [role, content] : pairs) {
       if (content.empty()) {
         continue;
       }
       if (role == "system" && system.empty()) {
         system = content;
-      } else if (role == "user" && user.empty()) {
+      } else if (role == "user") {
         user = content;
-      } else if (role == "assistant" && user.empty() == false && assistant.empty()) {
-        assistant = content;
+      } else if (role == "assistant" && !user.empty()) {
+        samples.push_back(DialogueSample{.intent = intent,
+                                         .system = system,
+                                         .prompt = std::move(user),
+                                         .response = content});
+        user.clear();
       }
     }
 
-    if (!user.empty() && !assistant.empty()) {
-      const auto intent = ExtractJsonStringField(trimmed, "intent");
-      return Result<DialogueSample>::Ok(DialogueSample{
-          .intent = intent.value_or(std::string{}),
-          .system = std::move(system),
-          .prompt = std::move(user),
-          .response = std::move(assistant),
-      });
+    if (!samples.empty()) {
+      return Result<std::vector<DialogueSample>>::Ok(std::move(samples));
     }
   }
 
@@ -162,25 +161,34 @@ Result<DialogueSample> ParseJsonlDialogueLine(const std::string& line) {
                                       : (output.has_value() ? output.value() : std::string{});
     if (!user.empty() && !assistant.empty()) {
       const auto intent = ExtractJsonStringField(trimmed, "intent");
-      return Result<DialogueSample>::Ok(DialogueSample{
+      return Result<std::vector<DialogueSample>>::Ok({DialogueSample{
           .intent = intent.value_or(std::string{}),
           .prompt = Trim(user),
           .response = Trim(assistant),
-      });
+      }});
     }
-    return Result<DialogueSample>::Fail(ErrorCode::InvalidArgument, "jsonl line has no user/assistant messages");
+    return Result<std::vector<DialogueSample>>::Fail(ErrorCode::InvalidArgument,
+                                                     "jsonl line has no user/assistant messages");
   }
 
   const auto response = ExtractJsonStringField(trimmed, "response");
   if (!response.has_value() || instruction->empty() || response->empty()) {
-    return Result<DialogueSample>::Fail(ErrorCode::InvalidArgument, "jsonl instruction/response is empty");
+    return Result<std::vector<DialogueSample>>::Fail(ErrorCode::InvalidArgument, "jsonl instruction/response is empty");
   }
 
-  return Result<DialogueSample>::Ok(DialogueSample{
+  return Result<std::vector<DialogueSample>>::Ok({DialogueSample{
       .intent = ExtractJsonStringField(trimmed, "intent").value_or(std::string{}),
       .prompt = Trim(instruction.value()),
       .response = Trim(response.value()),
-  });
+  }});
+}
+
+Result<DialogueSample> ParseJsonlDialogueLine(const std::string& line) {
+  auto samples = ParseJsonlDialogueLineSamples(line);
+  if (!samples.IsOk()) {
+    return Result<DialogueSample>::Fail(samples.GetError().code, samples.GetError().message);
+  }
+  return Result<DialogueSample>::Ok(std::move(samples.Value().front()));
 }
 
 } // namespace llm::training

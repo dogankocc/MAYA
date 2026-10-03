@@ -69,8 +69,8 @@
           <label class="field"><span data-i18n="kvHeads">KV head</span><input type="number" id="numKvHeads" min="1"></label>
           <label class="field"><span data-i18n="intermediate">FFN boyut</span><input type="number" id="intermediateDim" min="8"></label>
           <label class="field"><span data-i18n="maxSeq">Maks. dizi</span><input type="number" id="maxSeqLen" min="16"></label>
-          <label class="field"><span data-i18n="vocab">Sözcük (vocab)</span><input type="number" id="vocabSize" min="256"></label>
-          <label class="field"><span data-i18n="steps">Adım (0 = otomatik)</span><input type="number" id="steps" min="0"></label>
+          <label class="field"><span data-i18n="vocab">Sözcük (vocab)</span><input type="number" id="vocabSize" min="262"></label>
+          <label class="field"><span data-i18n="steps">Eğitim adımı (0 = otomatik)</span><input type="number" id="steps" min="0"><small class="muted" data-i18n="stepBatchHint">Her adımda batch size kadar örnek işlenir.</small></label>
           <label class="field"><span data-i18n="lr">Öğrenme hızı (0 = otomatik)</span><input type="number" id="learningRate" min="0" step="0.0001"></label>
           <label class="field"><span>Batch size</span><input type="number" id="batchSize" min="1"></label>
           <label class="field"><span data-i18n="ckptEvery">Checkpoint aralığı (adım)</span><input type="number" id="checkpointInterval" min="1"></label>
@@ -90,12 +90,12 @@
         <h2 data-i18n="progress">İlerleme</h2>
         <div class="progress"><div id="progressFill" class="progress-fill"></div></div>
         <div class="stats">
-          <div><span class="muted" data-i18n="step">Adım</span><strong id="statStep">0 / 0</strong></div>
+          <div><span class="muted" data-i18n="step">Eğitim adımı</span><strong id="statStep">0 / 0</strong></div>
           <div><span class="muted" data-i18n="loss">Loss</span><strong id="statLoss">–</strong></div>
           <div><span class="muted" data-i18n="elapsed">Geçen süre</span><strong id="statElapsed">–</strong></div>
           <div><span class="muted" data-i18n="eta">Kalan (tahmini)</span><strong id="statEta">–</strong></div>
           <div><span class="muted" data-i18n="speed">Hız</span><strong id="statSpeed">–</strong></div>
-          <div><span class="muted" data-i18n="resumedFrom">Devam adımı</span><strong id="statResumed">–</strong></div>
+          <div><span class="muted" data-i18n="resumedFrom">Başlangıç adımı</span><strong id="statResumed">0</strong></div>
         </div>
         <p id="statusMessage" class="muted small"></p>
       </article>
